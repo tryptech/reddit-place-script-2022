@@ -9,7 +9,9 @@ from io import BytesIO
 from http import HTTPStatus
 from websocket import create_connection
 from websocket._exceptions import WebSocketConnectionClosedException
+import ssl
 from PIL import Image
+from random import randint
 
 from loguru import logger
 import click
@@ -191,7 +193,8 @@ class PlaceClient:
         # Move the code anywhere you want, I put it here to inspect the API responses.
 
         # Reddit returns time in ms and we need seconds, so divide by 1000
-        return waitTime / 1000
+        # Add rand offset to delay pixel anywhere up to 3 minutes later
+        return (waitTime / 1000) + randint(0,3*60)
 
     def get_board(self, access_token_in):
         logger.debug("Connecting and obtaining board images")
@@ -199,7 +202,9 @@ class PlaceClient:
             try:
                 ws = create_connection(
                     "wss://gql-realtime-2.reddit.com/query",
-                    origin="https://hot-potato.reddit.com",
+                    origin="https://garlic-bread.reddit.com",
+                    sslopt={"cert_reqs": ssl.CERT_NONE},
+                    
                 )
                 break
             except Exception:
@@ -283,7 +288,29 @@ class PlaceClient:
                             },
                             "extensions": {},
                             "operationName": "replace",
-                            "query": "subscription replace($input: SubscribeInput!) {\n  subscribe(input: $input) {\n    id\n    ... on BasicMessage {\n      data {\n        __typename\n        ... on FullFrameMessageData {\n          __typename\n          name\n          timestamp\n        }\n        ... on DiffFrameMessageData {\n          __typename\n          name\n          currentTimestamp\n          previousTimestamp\n        }\n      }\n      __typename\n    }\n    __typename\n  }\n}\n",
+                            "query": """subscription replace($input: SubscribeInput!) {
+                                    subscribe(input: $input) {
+                                        id
+                                        ... on BasicMessage {
+                                            data {
+                                                __typename
+                                                ... on FullFrameMessageData {
+                                                    __typename
+                                                    name
+                                                    timestamp
+                                                }
+                                                ... on DiffFrameMessageData {
+                                                    __typename
+                                                    name
+                                                    currentTimestamp
+                                                    previousTimestamp
+                                                }
+                                            }
+                                            __typename
+                                        }
+                                        __typename
+                                    }
+                                }""",
                         },
                     }
                 )
@@ -531,7 +558,9 @@ class PlaceClient:
                             client.proxies = proxy.get_random_proxy(self, name)
                             client.headers.update(
                                 {
-                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 Safari/537.36"
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+                                    "Origin": "https://www.reddit.com",
+                                    "Referer": "https://www.reddit.com/login/?",
                                 }
                             )
 
@@ -648,7 +677,6 @@ class PlaceClient:
                         canvas = 2
                     elif self.raw_pixel_y_start >= 0 and self.raw_pixel_x_start >= 500:
                         canvas = 5
-
 
                     # draw the pixel onto r/place
                     next_pixel_placement_time = self.set_pixel_and_check_ratelimit(
