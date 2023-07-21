@@ -199,7 +199,8 @@ class PlaceClient:
             try:
                 ws = create_connection(
                     "wss://gql-realtime-2.reddit.com/query",
-                    origin="https://hot-potato.reddit.com",
+                    origin="https://garlic-bread.reddit.com",
+                    
                 )
                 break
             except Exception:
@@ -283,7 +284,29 @@ class PlaceClient:
                             },
                             "extensions": {},
                             "operationName": "replace",
-                            "query": "subscription replace($input: SubscribeInput!) {\n  subscribe(input: $input) {\n    id\n    ... on BasicMessage {\n      data {\n        __typename\n        ... on FullFrameMessageData {\n          __typename\n          name\n          timestamp\n        }\n        ... on DiffFrameMessageData {\n          __typename\n          name\n          currentTimestamp\n          previousTimestamp\n        }\n      }\n      __typename\n    }\n    __typename\n  }\n}\n",
+                            "query": """subscription replace($input: SubscribeInput!) {
+                                    subscribe(input: $input) {
+                                        id
+                                        ... on BasicMessage {
+                                            data {
+                                                __typename
+                                                ... on FullFrameMessageData {
+                                                    __typename
+                                                    name
+                                                    timestamp
+                                                }
+                                                ... on DiffFrameMessageData {
+                                                    __typename
+                                                    name
+                                                    currentTimestamp
+                                                    previousTimestamp
+                                                }
+                                            }
+                                            __typename
+                                        }
+                                        __typename
+                                    }
+                                }""",
                         },
                     }
                 )
@@ -648,7 +671,6 @@ class PlaceClient:
                         canvas = 2
                     elif self.raw_pixel_y_start >= 0 and self.raw_pixel_x_start >= 500:
                         canvas = 5
-
 
                     # draw the pixel onto r/place
                     next_pixel_placement_time = self.set_pixel_and_check_ratelimit(
