@@ -11,6 +11,7 @@ from websocket import create_connection
 from websocket._exceptions import WebSocketConnectionClosedException
 import ssl
 from PIL import Image
+from random import randint
 
 from loguru import logger
 import click
@@ -192,7 +193,8 @@ class PlaceClient:
         # Move the code anywhere you want, I put it here to inspect the API responses.
 
         # Reddit returns time in ms and we need seconds, so divide by 1000
-        return waitTime / 1000
+        # Add rand offset to delay pixel anywhere up to 3 minutes later
+        return (waitTime / 1000) + randint(0,3*60)
 
     def get_board(self, access_token_in):
         logger.debug("Connecting and obtaining board images")
