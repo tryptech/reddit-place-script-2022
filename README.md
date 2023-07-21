@@ -1,12 +1,28 @@
-# Reddit Place Script 2022
+# Reddit Place Script 2023
 
 [![Code style: black](./black_badge.svg)](https://github.com/psf/black)
 [![forthebadge](https://forthebadge.com/images/badges/made-with-python.svg)](https://forthebadge.com)
 [![forthebadge](https://forthebadge.com/images/badges/60-percent-of-the-time-works-every-time.svg)](https://forthebadge.com)
 
+# HELP WANTED!
+
+This project now has many bugs and I have no ability to debug. More developers are wanted.
+
+Confirmed Bugs:
+
+- Randomly authorization failed
+- Wrongly color conventing
+
+# Thanks to everyone who contributed! r/place is now over!
+<a href="https://github.com/rdeepak2002/reddit-place-script-2022/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=rdeepak2002/reddit-place-script-2022" />
+</a>
+
 ## About
 
 This is a script to draw an image onto r/place (<https://www.reddit.com/r/place/>).
+
+It has adapted r/place in 2023.
 
 ## Features
 
@@ -22,7 +38,7 @@ This is a script to draw an image onto r/place (<https://www.reddit.com/r/place/
 
 ## Requirements
 
--   [Latest Version of Python 3](https://www.python.org/downloads/)
+-   [Python 3.10](https://www.python.org/downloads/)
 
 ## macOS
 
@@ -146,6 +162,7 @@ Tor can be used as an alternative to normal proxies. Note that currently, you ca
 
 ```json
 "using_tor": false,
+"tor_ip": "127.0.0.1",
 "tor_port": 1881,
 "tor_control_port": 9051,
 "tor_password": "Passwort",
@@ -155,6 +172,7 @@ Tor can be used as an alternative to normal proxies. Note that currently, you ca
 
 The config values are as follows:
 - Deactivates or activates tor.
+- Sets the ip/hostname of the tor proxy to use
 - Sets the httptunnel port that should be used.
 - Sets the tor control port.
 - Sets the password (leave it as "Passwort" if you want to use the default binaries.

@@ -8,6 +8,7 @@ import sys
 from io import BytesIO
 from http import HTTPStatus
 from websocket import create_connection
+from websocket._exceptions import WebSocketConnectionClosedException
 from PIL import Image
 
 from loguru import logger
@@ -23,10 +24,19 @@ import src.utils as utils
 class PlaceClient:
     def __init__(self, config_path):
         self.logger = logger
+
         # Data
         self.json_data = utils.get_json_data(self, config_path)
-        self.pixel_x_start: int = self.json_data["image_start_coords"][0]
-        self.pixel_y_start: int = self.json_data["image_start_coords"][1]
+        self.raw_pixel_x_start: int = self.json_data["image_start_coords"][0]
+        self.raw_pixel_y_start: int = self.json_data["image_start_coords"][1]
+        if self.raw_pixel_x_start > 500:
+            self.pixel_x_start = self.raw_pixel_x_start - 500
+        else:
+            self.pixel_x_start = self.raw_pixel_x_start + 500
+        if self.raw_pixel_y_start >= 0:
+            self.pixel_y_start = self.raw_pixel_y_start
+        else:
+            self.pixel_y_start = self.raw_pixel_y_start + 1000
 
         # In seconds
         self.delay_between_launches = (
@@ -75,6 +85,21 @@ class PlaceClient:
     """ Main """
     # Draw a pixel at an x, y coordinate in r/place with a specific color
 
+    def show_raw_pixel_coordinate(self, x, y, canvas_index):
+        if canvas_index == 1:
+            raw_y = y - 1000
+            raw_x = x - 500
+        elif canvas_index == 4:
+            raw_y = y
+            raw_x = x - 500
+        elif canvas_index == 2:
+            raw_x = x + 500
+            raw_y = y + 1000
+        elif canvas_index == 5:
+            raw_x = x + 500
+            raw_y = y
+        return raw_x, raw_y
+
     def set_pixel_and_check_ratelimit(
         self,
         access_token_in,
@@ -86,15 +111,16 @@ class PlaceClient:
         thread_index=-1,
     ):
         # canvas structure:
-        # 0 | 1
-        # 2 | 3
+        # 1 | 2
+        # 4 | 5
+        raw_x, raw_y = self.show_raw_pixel_coordinate(x, y, canvas_index)
         logger.warning(
             "Thread #{} - {}: Attempting to place {} pixel at {}, {}",
             thread_index,
             name,
             ColorMapper.color_id_to_name(color_index_in),
-            x + (1000 * (canvas_index % 2)),
-            y + (1000 * (canvas_index // 2)),
+            raw_x,
+            raw_y,
         )
 
         url = "https://gql-realtime-2.reddit.com/query"
@@ -116,9 +142,9 @@ class PlaceClient:
             }
         )
         headers = {
-            "origin": "https://hot-potato.reddit.com",
-            "referer": "https://hot-potato.reddit.com/",
-            "apollographql-client-name": "mona-lisa",
+            "origin": "https://garlic-bread.reddit.com",
+            "referer": "https://garlic-bread.reddit.com/",
+            "apollographql-client-name": "garlic-bread",
             "Authorization": "Bearer " + access_token_in,
             "Content-Type": "application/json",
         }
@@ -128,7 +154,7 @@ class PlaceClient:
             url,
             headers=headers,
             data=payload,
-            proxies=proxy.get_random_proxy(self),
+            proxies=proxy.get_random_proxy(self, name=None),
         )
         logger.debug(
             "Thread #{} - {}: Received response: {}", thread_index, name, response.text
@@ -191,7 +217,11 @@ class PlaceClient:
             )
         )
         while True:
-            msg = ws.recv()
+            try:
+                msg = ws.recv()
+            except WebSocketConnectionClosedException as e:
+                logger.error(e)
+                continue
             if msg is None:
                 logger.error("Reddit failed to acknowledge connection_init")
                 exit()
@@ -208,7 +238,7 @@ class PlaceClient:
                         "variables": {
                             "input": {
                                 "channel": {
-                                    "teamOwner": "AFD2022",
+                                    "teamOwner": "GARLICBREAD",
                                     "category": "CONFIG",
                                 }
                             }
@@ -245,7 +275,7 @@ class PlaceClient:
                             "variables": {
                                 "input": {
                                     "channel": {
-                                        "teamOwner": "AFD2022",
+                                        "teamOwner": "GARLICBREAD",
                                         "category": "CANVAS",
                                         "tag": str(i),
                                     }
@@ -267,7 +297,7 @@ class PlaceClient:
             logger.debug("Waiting for WebSocket message")
 
             if temp["type"] == "data":
-                logger.debug("Received WebSocket data type message")
+                logger.debug(f"Received WebSocket data type message")
                 msg = temp["payload"]["data"]["subscribe"]
 
                 if msg["data"]["__typename"] == "FullFrameMessageData":
@@ -277,24 +307,24 @@ class PlaceClient:
 
                     if img_id in canvas_sockets:
                         logger.debug("Getting image: {}", msg["data"]["name"])
-                        imgs.append(
-                            [
-                                img_id,
-                                Image.open(
-                                    BytesIO(
-                                        requests.get(
-                                            msg["data"]["name"],
-                                            stream=True,
-                                            proxies=proxy.get_random_proxy(self),
-                                        ).content
-                                    )
-                                ),
-                            ]
-                        )
-                        canvas_sockets.remove(img_id)
-                        logger.debug(
-                            "Canvas sockets remaining: {}", len(canvas_sockets)
-                        )
+                        img = requests.get(msg["data"]["name"], stream=True,
+                                           proxies=proxy.get_random_proxy(self, name=None),)
+                        if not img.status_code == 404:
+                            imgs.append(
+                                [
+                                    img_id,
+                                    Image.open(
+                                        BytesIO(img.content)
+                                    ),
+                                ]
+                            )
+                            canvas_sockets.remove(img_id)
+                            logger.debug(
+                                "Canvas sockets remaining: {}", len(canvas_sockets)
+                            )
+                        else:
+                            logger.debug("Received wrong image")
+                            canvas_sockets.remove(img_id)
 
         for i in range(0, canvas_count - 1):
             ws.send(json.dumps({"id": str(2 + i), "type": "stop"}))
@@ -377,6 +407,7 @@ class PlaceClient:
             new_rgb = ColorMapper.closest_color(
                 target_rgb, self.rgb_colors_array, self.legacy_transparency
             )
+
             if pix2[x + self.pixel_x_start, y + self.pixel_y_start] != new_rgb:
                 logger.debug(
                     "{}, {}, {}, {}",
@@ -411,7 +442,6 @@ class PlaceClient:
     def task(self, index, name, worker):
         # Whether image should keep drawing itself
         repeat_forever = True
-
         while True:
             # last_time_placed_pixel = math.floor(time.time())
 
@@ -498,16 +528,18 @@ class PlaceClient:
                     while True:
                         try:
                             client = requests.Session()
-                            client.proxies = proxy.get_random_proxy(self)
+                            client.proxies = proxy.get_random_proxy(self, name)
                             client.headers.update(
                                 {
                                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 Safari/537.36"
                                 }
                             )
 
+                            client.get("https://www.reddit.com")
+
                             r = client.get(
                                 "https://www.reddit.com/login",
-                                proxies=proxy.get_random_proxy(self),
+                                proxies=proxy.get_random_proxy(self, name),
                             )
                             login_get_soup = BeautifulSoup(r.content, "html.parser")
                             csrf_token = login_get_soup.find(
@@ -518,12 +550,13 @@ class PlaceClient:
                                 "password": password,
                                 "dest": "https://new.reddit.com/",
                                 "csrf_token": csrf_token,
+                                "otp": "",
                             }
 
                             r = client.post(
                                 "https://www.reddit.com/login",
                                 data=data,
-                                proxies=proxy.get_random_proxy(self),
+                                proxies=proxy.get_random_proxy(self, name),
                             )
                             break
                         except Exception:
@@ -534,14 +567,15 @@ class PlaceClient:
 
                     if r.status_code != HTTPStatus.OK.value:
                         # password is probably invalid
-                        logger.exception("Authorization failed!")
+                        logger.exception("{} - Authorization failed!", username)
                         logger.debug("response: {} - {}", r.status_code, r.text)
                         return
                     else:
-                        logger.success("Authorization successful!")
+                        logger.success("{} - Authorization successful!", username)
                     logger.info("Obtaining access token...")
                     r = client.get(
-                        "https://new.reddit.com/", proxies=proxy.get_random_proxy(self)
+                        "https://new.reddit.com/",
+                        proxies=proxy.get_random_proxy(self, name),
                     )
                     data_str = (
                         BeautifulSoup(r.content, features="html.parser")
@@ -606,12 +640,15 @@ class PlaceClient:
                     canvas = 0
                     pixel_x_start = self.pixel_x_start + current_r
                     pixel_y_start = self.pixel_y_start + current_c
-                    while pixel_x_start > 999:
-                        pixel_x_start -= 1000
-                        canvas += 1
-                    while pixel_y_start > 999:
-                        pixel_y_start -= 1000
-                        canvas += 2
+                    if self.raw_pixel_y_start >= 0 and self.raw_pixel_x_start < 500:
+                        canvas = 4
+                    elif self.raw_pixel_y_start < 0 and self.raw_pixel_x_start < 500:
+                        canvas = 1
+                    elif self.raw_pixel_y_start < 0 and self.raw_pixel_x_start >= 500:
+                        canvas = 2
+                    elif self.raw_pixel_y_start >= 0 and self.raw_pixel_x_start >= 500:
+                        canvas = 5
+
 
                     # draw the pixel onto r/place
                     next_pixel_placement_time = self.set_pixel_and_check_ratelimit(
