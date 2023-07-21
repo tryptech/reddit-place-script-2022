@@ -9,6 +9,7 @@ from io import BytesIO
 from http import HTTPStatus
 from websocket import create_connection
 from websocket._exceptions import WebSocketConnectionClosedException
+import ssl
 from PIL import Image
 
 from loguru import logger
@@ -200,6 +201,7 @@ class PlaceClient:
                 ws = create_connection(
                     "wss://gql-realtime-2.reddit.com/query",
                     origin="https://garlic-bread.reddit.com",
+                    sslopt={"cert_reqs": ssl.CERT_NONE},
                     
                 )
                 break
