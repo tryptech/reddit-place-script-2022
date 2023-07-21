@@ -10,6 +10,7 @@ from http import HTTPStatus
 from websocket import create_connection
 from websocket._exceptions import WebSocketConnectionClosedException
 import ssl
+from datetime import timedelta
 from PIL import Image
 from random import randint
 
@@ -192,14 +193,26 @@ class PlaceClient:
         # If we do, a pixel has been successfully placed.
         if response.json()["data"] is None:
             logger.debug(response.json().get("errors"))
-            waitTime = math.floor(
-                response.json()["errors"][0]["extensions"]["nextAvailablePixelTs"]
-            )
-            logger.error(
-                "Thread #{} - {}: Failed placing pixel: rate limited",
-                thread_index,
-                name,
-            )
+            errors = response.json().get("errors")[0]
+            if "extensions" in errors:
+                waitTime = math.floor(
+                    errors["extensions"]["nextAvailablePixelTs"]
+                )
+                logger.error(
+                    "Thread #{} - {}: Failed placing pixel: rate limited for {}",
+                    thread_index,
+                    name,
+                    timedelta(milliseconds=errors["extensions"]["nextAvailablePixelTs"]),
+                )
+            else:
+                # Wait 1 minute on any other error
+                waitTime = 60*1000
+                logger.error(
+                    "Thread #{} - {}: {}",
+                    thread_index,
+                    name,
+                    errors.get("message")
+                )
         else:
             waitTime = math.floor(
                 response.json()["data"]["act"]["data"][0]["data"][
