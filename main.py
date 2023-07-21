@@ -188,7 +188,7 @@ class PlaceClient:
                     "Thread #{} - {}: Failed placing pixel: rate limited for {}",
                     thread_index,
                     name,
-                    timedelta(errors["extensions"]["nextAvailablePixelTs"] - time.time()),
+                    timedelta(milliseconds=errors["extensions"]["nextAvailablePixelTs"] - time.time()*1000),
                 )
             else:
                 # Wait 1 minute on any other error
