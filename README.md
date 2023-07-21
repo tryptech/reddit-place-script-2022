@@ -71,15 +71,11 @@ Note: Please use https://jsonlint.com/ to check that your JSON file is correctly
 		"worker1username": {
 			// password of account 1
 			"password": "password",
-			// which pixel of the image to draw first
-			"start_coords": [0, 0]
 		},
 		// username of account 2
 		"worker1username": {
 			// password of account 2
 			"password": "password",
-			// which pixel of the image to draw first
-			"start_coords": [0, 0]
 		}
 		// etc... add as many accounts as you want (but reddit may detect you the more you add)
 	}
@@ -122,17 +118,15 @@ Just create multiple child arrays to "workers" in the .json file:
 	"workers": {
 		"worker1username": {
 			"password": "password",
-			"start_coords": [0, 0]
 		},
 		"worker2username": {
 			"password": "password",
-			"start_coords": [0, 50]
 		}
 	}
 }
 ```
 
-In this case, the first worker will start drawing from (0, 0) and the second worker will start drawing from (0, 50) from the input image.jpg file.
+In this case, both workers will draw random pixels from the input image file.
 
 This is useful if you want different threads drawing different parts of the image with different accounts.
 

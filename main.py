@@ -188,7 +188,7 @@ class PlaceClient:
                     "Thread #{} - {}: Failed placing pixel: rate limited for {}",
                     thread_index,
                     name,
-                    errors["extensions"]["nextAvailablePixelTs"],
+                    timedelta(errors["extensions"]["nextAvailablePixelTs"] - time.time()),
                 )
             else:
                 # Wait 1 minute on any other error
@@ -505,8 +505,8 @@ class PlaceClient:
 
             try:
                 # Current pixel row and pixel column being drawn
-                current_r = worker["start_coords"][0]
-                current_c = worker["start_coords"][1]
+                current_r = randint(0,self.image_size[0])
+                current_c = randint(0,self.image_size[1])
             except Exception:
                 logger.info("You need to provide start_coords to worker '{}'", name)
                 exit(1)
@@ -705,12 +705,8 @@ class PlaceClient:
                         index,
                     )
 
-                    current_r += 1
-
-                    # go back to first column when reached end of a row while drawing
-                    if current_r >= self.image_size[0]:
-                        current_r = 0
-                        current_c += 1
+                    current_r = randint(0,self.image_size[0])
+                    current_c = randint(0,self.image_size[1])
 
                     # exit when all pixels drawn
                     if current_c >= self.image_size[1]:
