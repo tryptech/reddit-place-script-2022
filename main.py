@@ -140,7 +140,30 @@ class PlaceClient:
                         },
                     }
                 },
-                "query": "mutation setPixel($input: ActInput!) {\n  act(input: $input) {\n    data {\n      ... on BasicMessage {\n        id\n        data {\n          ... on GetUserCooldownResponseMessageData {\n            nextAvailablePixelTimestamp\n            __typename\n          }\n          ... on SetPixelResponseMessageData {\n            timestamp\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n",
+                "query": """mutation setPixel($input: ActInput!) {
+                        act(input: $input) {
+                            data {
+                                ... on BasicMessage {
+                                    id
+                                    data {
+                                        ... on GetUserCooldownResponseMessageData {
+                                            nextAvailablePixelTimestamp
+                                            __typename
+                                        }
+                                        ... on SetPixelResponseMessageData {
+                                            timestamp
+                                            __typename
+                                        }
+                                        __typename
+                                    }
+                                    __typename
+                                }
+                                __typename
+                            }
+                            __typename
+                        }
+                    }
+                """,
             }
         )
         headers = {
