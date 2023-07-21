@@ -30,16 +30,10 @@ class PlaceClient:
 
         # Data
         self.json_data = utils.get_json_data(self, config_path)
-        self.raw_pixel_x_start: int = self.json_data["image_start_coords"][0]
-        self.raw_pixel_y_start: int = self.json_data["image_start_coords"][1]
-        if self.raw_pixel_x_start > 500:
-            self.pixel_x_start = self.raw_pixel_x_start - 500
-        else:
-            self.pixel_x_start = self.raw_pixel_x_start + 500
-        if self.raw_pixel_y_start >= 0:
-            self.pixel_y_start = self.raw_pixel_y_start
-        else:
-            self.pixel_y_start = self.raw_pixel_y_start + 1000
+        self.raw_pixel_x_start: int = self.json_data["image_start_coords"][0] - 500
+        self.raw_pixel_y_start: int = self.json_data["image_start_coords"][1] - 500
+        self.pixel_x_start = self.raw_pixel_x_start + 1500
+        self.pixel_y_start = self.raw_pixel_y_start + 1000
 
         # In seconds
         self.delay_between_launches = (
@@ -89,18 +83,10 @@ class PlaceClient:
     # Draw a pixel at an x, y coordinate in r/place with a specific color
 
     def show_raw_pixel_coordinate(self, x, y, canvas_index):
-        if canvas_index == 1:
-            raw_y = y - 1000
-            raw_x = x - 500
-        elif canvas_index == 4:
-            raw_y = y
-            raw_x = x - 500
-        elif canvas_index == 2:
-            raw_x = x + 500
-            raw_y = y + 1000
-        elif canvas_index == 5:
-            raw_x = x + 500
-            raw_y = y
+        canvas_offset_x = int(canvas_index % 3) * 1000
+        canvas_offset_y = int(math.floor(canvas_index / 3)) * 1000
+        raw_x = canvas_offset_x + x - 1500
+        raw_y = canvas_offset_y + y - 1000
         return raw_x, raw_y
 
     def set_pixel_and_check_ratelimit(
@@ -114,8 +100,8 @@ class PlaceClient:
         thread_index=-1,
     ):
         # canvas structure:
-        # 1 | 2
-        # 4 | 5
+        # 0 | 1 | 2
+        # 3 | 4 | 5
         raw_x, raw_y = self.show_raw_pixel_coordinate(x, y, canvas_index)
         logger.warning(
             "Thread #{} - {}: Attempting to place {} pixel at {}, {}",
@@ -486,16 +472,16 @@ class PlaceClient:
                         "Thread #{} : Replacing {} pixel at: {},{} with {} color",
                         index,
                         pix2[x + self.pixel_x_start, y + self.pixel_y_start],
-                        x + self.pixel_x_start,
-                        y + self.pixel_y_start,
+                        x + self.pixel_x_start - 1500,
+                        y + self.pixel_y_start - 1000,
                         new_rgb,
                     )
                     break
                 else:
                     logger.info(
                         "Transparent Pixel at {}, {} skipped",
-                        x + self.pixel_x_start,
-                        y + self.pixel_y_start,
+                        x + self.pixel_x_start - 1500,
+                        y + self.pixel_y_start - 1000,
                     )
             x += 1
             loopedOnce = True
@@ -705,20 +691,14 @@ class PlaceClient:
                     canvas = 0
                     pixel_x_start = self.pixel_x_start + current_r
                     pixel_y_start = self.pixel_y_start + current_c
-                    if self.raw_pixel_y_start >= 0 and self.raw_pixel_x_start < 500:
-                        canvas = 4
-                    elif self.raw_pixel_y_start < 0 and self.raw_pixel_x_start < 500:
-                        canvas = 1
-                    elif self.raw_pixel_y_start < 0 and self.raw_pixel_x_start >= 500:
-                        canvas = 2
-                    elif self.raw_pixel_y_start >= 0 and self.raw_pixel_x_start >= 500:
-                        canvas = 5
+
+                    canvas = (3 * math.floor(pixel_x_start / 1000)) + math.floor(pixel_y_start / 1000)
 
                     # draw the pixel onto r/place
                     next_pixel_placement_time = self.set_pixel_and_check_ratelimit(
                         self.access_tokens[index],
-                        pixel_x_start,
-                        pixel_y_start,
+                        pixel_x_start%1000,
+                        pixel_y_start%1000,
                         name,
                         pixel_color_index,
                         canvas,
