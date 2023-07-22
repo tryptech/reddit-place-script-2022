@@ -90,7 +90,8 @@ def load_templates(self):
         and self.json_data["names"]
         else []
     )
-    templates = list(filter(lambda template: template['name'] in names, templates))
+    if names:
+        templates = list(filter(lambda template: template['name'] in names, templates))
 
     images = []
     for sources in templates:
