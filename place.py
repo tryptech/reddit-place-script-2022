@@ -184,10 +184,10 @@ class PlaceClient:
 
         # Successfully placed
         if response.json()["data"] is not None:
-            next_time = math.floor(
+            next_time = (
                 response.json()["data"]["act"]["data"][0]
                 ["data"]["nextAvailablePixelTimestamp"]
-            )
+            ) / 1000
             logger.success("Thread {}: Succeeded placing pixel", username)
             return next_time
         
@@ -283,4 +283,6 @@ class PlaceClient:
             logger.warning("KeyboardInterrupt received, killing threads...")
             self.stop_event.set()
             logger.warning("Threads killed, exiting...")
+            for thread in threads:
+                thread.join()
             exit(0)
