@@ -498,7 +498,7 @@ class PlaceClient:
                     )
                     break
                 else:
-                    logger.info(
+                    logger.debug(
                         "Transparent Pixel at {}, {} skipped",
                         x + self_pixel_x_start - 1500,
                         y + self_pixel_y_start - 1000,
@@ -530,13 +530,9 @@ class PlaceClient:
 
             next_pixel_placement_time = math.floor(time.time()) + pixel_place_frequency
 
-            try:
-                # Current pixel row and pixel column being drawn
-                current_r = randint(0,image_size[0])
-                current_c = randint(0,image_size[1])
-            except Exception:
-                logger.info("You need to provide start_coords to worker '{}'", name)
-                exit(1)
+            # Current pixel row and pixel column being drawn
+            current_r = randint(0,image_size[0])
+            current_c = randint(0,image_size[1])
 
             # Time until next pixel is drawn
             update_str = ""
@@ -591,7 +587,7 @@ class PlaceClient:
                     )
                 ):
                     if not self.compactlogging:
-                        logger.info(
+                        logger.debug(
                             "Thread #{} - {}: Refreshing access token", index, name
                         )
 
@@ -655,7 +651,7 @@ class PlaceClient:
                         return
                     else:
                         logger.success("{} - Authorization successful!", username)
-                    logger.info("Obtaining access token...")
+                    logger.debug("Obtaining access token...")
                     r = client.get(
                         "https://new.reddit.com/",
                         proxies=proxy.get_random_proxy(self, name),
@@ -669,7 +665,7 @@ class PlaceClient:
                     response_data = data["user"]["session"]
 
                     if "error" in response_data:
-                        logger.info(
+                        logger.error(
                             "An error occured. Make sure you have the correct credentials. Response data: {}",
                             response_data,
                         )
@@ -687,7 +683,7 @@ class PlaceClient:
                         index
                     ] = current_timestamp + int(access_token_expires_in_seconds)
                     if not self.compactlogging:
-                        logger.info(
+                        logger.debug(
                             "Received new access token: {}************",
                             self.access_tokens.get(index)[:5],
                         )

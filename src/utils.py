@@ -35,9 +35,9 @@ def load_image(self):
     # Convert all images to RGBA - Transparency should only be supported with PNG
     if image.mode != "RGBA":
         image = image.convert("RGBA")
-        self.logger.info("Converted to rgba")
+        self.logger.debug("Converted to rgba")
     
-    self.logger.info("Loaded image size: {}", image.size)
+    self.logger.debug("Loaded image size: {}", image.size)
     return image
 
 
@@ -69,9 +69,9 @@ def load_image_from_url(self, url):
     # Convert image to RGBA - Transparency should only be supported with PNG
     if image.mode != "RGBA":
         image = image.convert("RGBA")
-        self.logger.info("Converted to rgba")
+        self.logger.debug("Converted to rgba")
     
-    self.logger.info("Loaded image size: {}", image.size)
+    self.logger.debug("Loaded image size: {}", image.size)
     return image
 
 
