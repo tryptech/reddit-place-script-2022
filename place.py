@@ -263,7 +263,8 @@ class PlaceClient:
                 target=self.task,
                 args=[username, password],
             )
-            for username, password in self.json_data["workers"].items()
+            for username, password in zip(self.json_data["workers"],
+                                          self.json_data["workers"]["passwords"])
         ]
 
         for thread in threads:
