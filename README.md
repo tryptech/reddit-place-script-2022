@@ -11,7 +11,7 @@ This project now has many bugs and I have no ability to debug. More developers a
 Confirmed Bugs:
 
 - Randomly authorization failed
-- Wrongly color conventing
+- Wrongly color converting
 
 # Thanks to everyone who contributed! r/place is now over!
 <a href="https://github.com/rdeepak2002/reddit-place-script-2022/graphs/contributors">
@@ -38,14 +38,14 @@ It has adapted r/place in 2023.
 
 ## Requirements
 
--   [Python 3.10](https://www.python.org/downloads/)
+- [Python 3.10](https://www.python.org/downloads/)
 
 ## macOS
 
 If you want to use tor on macOS. you'll need to provide your own tor binary or install it via [Homebrew](https://brew.sh) using ``brew install tor``, and start it manually.
 
 Make sure to deactivate the "use_builtin tor"
-option in the config and configure your tor to use the correct ports and password. 
+option in the config and configure your tor to use the correct ports and password.
 
 *Please note that socks proxy connection to tor doesn't work for the time being, so the config value is for an httpTunnel port*
 
@@ -55,37 +55,42 @@ Move the file 'config_example.json' to 'config.json'
 
 Edit the values to replace with actual credentials and values
 
-Note: Please use https://jsonlint.com/ to check that your JSON file is correctly formatted
+Note: Please use <https://jsonlint.com/> to check that your JSON file is correctly formatted
 
 ```json
 {
-	//Where the image's path is
-	"image_path": "image.png",
-	// [x,y] where you want the top left pixel of the local image to be drawn on canvas
-	"image_start_coords": [741, 610],
-	// delay between starting threads (can be 0)
-	"thread_delay": 2,
-	// array of accounts to use
-	"workers": {
-		// username of account 1
-		"worker1username": {
-			// password of account 1
-			"password": "password",
-		},
-		// username of account 2
-		"worker1username": {
-			// password of account 2
-			"password": "password",
-		}
-		// etc... add as many accounts as you want (but reddit may detect you the more you add)
-	}
+    // The URLs to the template overlays
+    "template_urls": [
+        "https://url.to.the.template1.png",
+        "https://url.to.the.template2.png"
+    ],
+    //Where the template image will be saved or loaded from
+    "image_path": "image.png",
+    // [x,y] where you want the top left pixel of the local image to be drawn on canvas if template_urls is empty
+    "image_start_coords": [741, 610],
+    // delay between starting threads (can be 0)
+    "thread_delay": 2,
+    // array of accounts to use
+    "workers": {
+        // username of account 1
+        "worker1username": {
+            // password of account 1
+            "password": "password",
+        },
+        // username of account 2
+        "worker1username": {
+            // password of account 2
+            "password": "password",
+        }
+        // etc... add as many accounts as you want (but reddit may detect you the more you add)
+    }
 }
 ```
 
 ### Notes
 
--   Use `.png` if you wish to make use of transparency or non rectangular images
--   If you use 2 factor authentication (2FA) in your account, then change `password` to `password:XXXXXX` where `XXXXXX` is your 2FA code.
+- Use `.png` if you wish to make use of transparency or non rectangular images
+- If you use 2 factor authentication (2FA) in your account, then change `password` to `password:XXXXXX` where `XXXXXX` is your 2FA code.
 
 ## Run the Script
 
@@ -107,22 +112,23 @@ chmod +x start.sh startverbose.sh
 `python3 main.py -d` or `python3 main.py --debug`
 
 ## Multiple Workers
+
 Just create multiple child arrays to "workers" in the .json file:
 
 ```json
 {
-	"image_path": "image.png",
-	"image_start_coords": [741, 610],
-	"thread_delay": 2,
+    "image_path": "image.png",
+    "image_start_coords": [741, 610],
+    "thread_delay": 2,
 
-	"workers": {
-		"worker1username": {
-			"password": "password",
-		},
-		"worker2username": {
-			"password": "password",
-		}
-	}
+    "workers": {
+        "worker1username": {
+            "password": "password",
+        },
+        "worker2username": {
+            "password": "password",
+        }
+    }
 }
 ```
 
@@ -136,10 +142,10 @@ If any JSON decoders errors are found, the `config.json` needs to be fixed. Make
 
 ```json
 {
-	"thread_delay": 2,
-	"unverified_place_frequency": false,
-	"proxies": ["1.1.1.1:8080", "2.2.2.2:1234"],
-	"compact_logging": true
+    "thread_delay": 2,
+    "unverified_place_frequency": false,
+    "proxies": ["1.1.1.1:8080", "2.2.2.2:1234"],
+    "compact_logging": true
 }
 ```
 
@@ -148,10 +154,11 @@ If any JSON decoders errors are found, the `config.json` needs to be fixed. Make
 - proxies - Sets proxies to use for sending requests to reddit. The proxy used is randomly selected for each request. Can be used to avoid ratelimiting.
 - compact_logging - Disables timer text until next pixel.
 - Transparency can be achieved by using the RGB value (69, 42, 0) in any part of your image.
-- If you'd like, you can enable Verbose Mode by adding `--verbose` to "python main.py". This will output a lot more information, and not neccessarily in the right order, but it is useful for development and debugging.
+- If you'd like, you can enable Verbose Mode by adding `--verbose` to "python main.py". This will output a lot more information, and not necessarily in the right order, but it is useful for development and debugging.
 - You can also setup proxies by creating a "proxies" and have a new line for each proxies.
 
 # Tor
+
 Tor can be used as an alternative to normal proxies. Note that currently, you cannot use normal proxies and tor at the same time.
 
 ```json
@@ -165,11 +172,12 @@ Tor can be used as an alternative to normal proxies. Note that currently, you ca
 ```
 
 The config values are as follows:
+
 - Deactivates or activates tor.
 - Sets the ip/hostname of the tor proxy to use
 - Sets the httptunnel port that should be used.
 - Sets the tor control port.
-- Sets the password (leave it as "Passwort" if you want to use the default binaries.
+- Sets the password. (Leave it as "Passwort" if you want to use the default binaries.)
 - The delay that tor should receive to process a new connection.
 - Whether the included tor binary should be used. It is preconfigured. If you want to use your own binary, make sure you configure it properly.
 
@@ -197,6 +205,7 @@ Copyright (c) 2007-2019, The Tor Project, Inc.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
 met:
+>
 >- Redistributions of source code must retain the above copyright
 notice, this list of conditions and the following disclaimer.
 >- Redistributions in binary form must reproduce the above

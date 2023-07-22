@@ -30,10 +30,18 @@ class PlaceClient:
 
         # Data
         self.json_data = utils.get_json_data(self, config_path)
-        self.raw_pixel_x_start: int = self.json_data["image_start_coords"][0] - 500
-        self.raw_pixel_y_start: int = self.json_data["image_start_coords"][1] - 500
-        self.pixel_x_start = self.raw_pixel_x_start + 1500
-        self.pixel_y_start = self.raw_pixel_y_start + 1000
+        
+        self.template_urls = (
+            self.json_data["template_urls"]
+            if "template_urls" in self.json_data
+            and self.json_data["template_urls"] is not None
+            else []
+        )
+        self.image_path = (
+            self.json_data["image_path"]
+            if "image_path" in self.json_data
+            else "image.jpg"
+        )
 
         # In seconds
         self.delay_between_launches = (
@@ -64,22 +72,29 @@ class PlaceClient:
         self.access_tokens = {}
         self.access_token_expires_at_timestamp = {}
 
-        self.images = []
-        self.image_targets = {}
+        # Load templates
+        x_start, y_start, image = (
+            utils.load_templates(self)
+            or (
+                *self.json_data["image_start_coords"],
+                utils.load_image(self)
+            )
+        )
 
         # Image information
-        self.pix = None
-        self.image_size = None
-        self.image_path = (
-            self.json_data["image_path"]
-            if "image_path" in self.json_data
-            else "image.jpg"
-        )
+        self.image_lock = threading.Lock()
+        self.pix = image.load()
+        self.image_size = image.size
+
+        # Start coordinates
+        self.raw_pixel_x_start: int = x_start - 500
+        self.raw_pixel_y_start: int = y_start - 500
+        self.pixel_x_start = self.raw_pixel_x_start + 1500
+        self.pixel_y_start = self.raw_pixel_y_start + 1000
+
         self.first_run_counter = 0
 
-        # Initialize-functions
-        utils.load_api(self)
-        #utils.load_images(self)
+        self.stop_event = threading.Event()
 
         self.waiting_thread_index = -1
 
@@ -224,7 +239,7 @@ class PlaceClient:
 
     def get_board(self, access_token_in):
         logger.debug("Connecting and obtaining board images")
-        while True:
+        while not self.stop_event.is_set():
             try:
                 ws = create_connection(
                     "wss://gql-realtime-2.reddit.com/query",
@@ -247,7 +262,7 @@ class PlaceClient:
                 }
             )
         )
-        while True:
+        while not self.stop_event.is_set():
             try:
                 msg = ws.recv()
             except WebSocketConnectionClosedException as e:
@@ -282,7 +297,7 @@ class PlaceClient:
             )
         )
 
-        while True:
+        while not self.stop_event.is_set():
             canvas_payload = json.loads(ws.recv())
             if canvas_payload["type"] == "data":
                 canvas_details = canvas_payload["payload"]["data"]["subscribe"]["data"]
@@ -406,19 +421,17 @@ class PlaceClient:
 
         return new_img
 
-    def get_unset_pixel(self, x, y, canvas_index, image_index):
+    def get_unset_pixel(self, x, y, index, pix, image_size,
+                        self_pixel_x_start, self_pixel_y_start):
         originalX = x
         originalY = y
         loopedOnce = False
         imgOutdated = True
         wasWaiting = False
 
-        image_selected = self.images[image_index]
-        logger.debug(image_selected)
-
-        while True:
+        while not self.stop_event.is_set():
             time.sleep(0.05)
-            if self.waiting_thread_index != -1 and self.waiting_thread_index != canvas_index:
+            if self.waiting_thread_index != -1 and self.waiting_thread_index != index:
                 x = originalX
                 y = originalY
                 loopedOnce = False
@@ -429,79 +442,83 @@ class PlaceClient:
             # Stagger reactivation of threads after wait
             if wasWaiting:
                 wasWaiting = False
-                time.sleep(canvas_index * self.delay_between_launches)
+                time.sleep(index * self.delay_between_launches)
+
+            if x >= image_size[0]:
+                y += 1
+                x = 0
+
+            if y >= image_size[1]:
+
+                y = 0
 
             if x == originalX and y == originalY and loopedOnce:
                 logger.info(
                     "Thread #{} : All pixels correct, trying again in 10 seconds... ",
-                    canvas_index,
+                    index,
                 )
-                self.waiting_thread_index = canvas_index
+                self.waiting_thread_index = index
                 time.sleep(10)
                 imgOutdated = True
 
             if imgOutdated:
-                boardimg = self.get_board(self.access_tokens[canvas_index])
+                boardimg = self.get_board(self.access_tokens[index])
                 pix2 = boardimg.convert("RGB").load()
                 imgOutdated = False
 
-            logger.debug("{}, {}", x + self.pixel_x_start, y + self.pixel_y_start)
+            logger.debug("{}, {}", x + self_pixel_x_start, y + self_pixel_y_start)
             logger.debug(
-                "{}, {}, boardimg, {}, {}", x, y, image_selected["width"], image_selected["height"]
+                "{}, {}, boardimg, {}, {}", x, y, image_size[0], image_size[1]
             )
 
-            image = Image.open(image_selected['path']).convert('RGBA')
-            image_data = image.load()
-            target_rgb = image_data[x, y]
-
+            target_rgb = pix[x, y]
 
             new_rgb = ColorMapper.closest_color(
-                target_rgb[0:3], self.rgb_colors_array, self.legacy_transparency
+                target_rgb, self.rgb_colors_array, self.legacy_transparency
             )
 
-            if pix2[x + self.pixel_x_start, y + self.pixel_y_start] != new_rgb:
+            if pix2[x + self_pixel_x_start, y + self_pixel_y_start] != new_rgb:
                 logger.debug(
                     "{}, {}, {}, {}",
-                    pix2[x + self.pixel_x_start, y + self.pixel_y_start],
+                    pix2[x + self_pixel_x_start, y + self_pixel_y_start],
                     new_rgb,
-                    target_rgb[3] == 255,
+                    new_rgb != (69, 42, 0),
                     pix2[x, y] != new_rgb,
                 )
 
-                # check rgba for full alpha
-                if target_rgb[3] == 255:
+                # (69, 42, 0) is a special color reserved for transparency.
+                if new_rgb != (69, 42, 0):
                     logger.debug(
                         "Thread #{} : Replacing {} pixel at: {},{} with {} color",
-                        canvas_index,
-                        pix2[x + self.pixel_x_start, y + self.pixel_y_start],
-                        x + self.pixel_x_start - 1500,
-                        y + self.pixel_y_start - 1000,
+                        index,
+                        pix2[x + self_pixel_x_start, y + self_pixel_y_start],
+                        x + self_pixel_x_start - 1500,
+                        y + self_pixel_y_start - 1000,
                         new_rgb,
                     )
                     break
                 else:
-                    logger.debug(
+                    logger.info(
                         "Transparent Pixel at {}, {} skipped",
-                        x + self.pixel_x_start - 1500,
-                        y + self.pixel_y_start - 1000,
+                        x + self_pixel_x_start - 1500,
+                        y + self_pixel_y_start - 1000,
                     )
             x += 1
-            if x >= image_selected['width']:
-                x = 0
-                y += 1
-            if y >= image_selected['height']:
-                logger.debug(
-                        "Image OK"
-                    )
-                y = 0
             loopedOnce = True
         return x, y, new_rgb
 
     # Draw the input image
-    def task(self, index, name, worker, stop_event=None):
+    def task(self, index, name, worker):
         # Whether image should keep drawing itself
         repeat_forever = True
-        while not (stop_event and stop_event.is_set()):
+        while not self.stop_event.is_set():
+            # Update information
+            with self.image_lock:
+                pix = self.pix
+                image_size = self.image_size
+                self_pixel_x_start = self.pixel_x_start
+                self_pixel_y_start = self.pixel_y_start
+
             # last_time_placed_pixel = math.floor(time.time())
 
             # note: Reddit limits us to place 1 pixel every 5 minutes, so I am setting it to
@@ -513,27 +530,29 @@ class PlaceClient:
 
             next_pixel_placement_time = math.floor(time.time()) + pixel_place_frequency
 
-            # select random image
-            self.image_targets[name] = randint(0,len(self.images)-1)
-            image_data = Image.open(self.images[self.image_targets[name]]['path'])
-            # select random pixel from image
-            current_r = -1
-            current_c = -1
-            while (0 >= current_r < image_data.size[0]):
-                current_r = randint(0,image_data.size[0]-1)
-            while (0 >= current_c <= image_data.size[1]):
-                current_c = randint(0,image_data.size[1]-1)
+            try:
+                # Current pixel row and pixel column being drawn
+                current_r = randint(0,image_size[0])
+                current_c = randint(0,image_size[1])
+            except Exception:
+                logger.info("You need to provide start_coords to worker '{}'", name)
+                exit(1)
 
             # Time until next pixel is drawn
             update_str = ""
 
             # Refresh auth tokens and / or draw a pixel
-            while not (stop_event and stop_event.is_set()):
-                # reduce CPU usage
-                time.sleep(1)
-
+            # Reduce CPU usage by sleeping 1 second
+            while not self.stop_event.wait(timeout=1):
                 # get the current time
                 current_timestamp = math.floor(time.time())
+
+                # Update information
+                with self.image_lock:
+                    pix = self.pix
+                    image_size = self.image_size
+                    self_pixel_x_start = self.pixel_x_start
+                    self_pixel_y_start = self.pixel_y_start
 
                 # log next time until drawing
                 time_until_next_draw = next_pixel_placement_time - current_timestamp
@@ -587,7 +606,7 @@ class PlaceClient:
                         )
                         exit(1)
 
-                    while True:
+                    while not self.stop_event.is_set():
                         try:
                             client = requests.Session()
                             client.proxies = proxy.get_random_proxy(self, name)
@@ -636,7 +655,7 @@ class PlaceClient:
                         return
                     else:
                         logger.success("{} - Authorization successful!", username)
-                    logger.debug("Obtaining access token...")
+                    logger.info("Obtaining access token...")
                     r = client.get(
                         "https://new.reddit.com/",
                         proxies=proxy.get_random_proxy(self, name),
@@ -668,7 +687,7 @@ class PlaceClient:
                         index
                     ] = current_timestamp + int(access_token_expires_in_seconds)
                     if not self.compactlogging:
-                        logger.debug(
+                        logger.info(
                             "Received new access token: {}************",
                             self.access_tokens.get(index)[:5],
                         )
@@ -687,25 +706,27 @@ class PlaceClient:
                     # target_rgb = pix[current_r, current_c]
 
                     # get current pixel position from input image and replacement color
-                    pixel_info = self.get_unset_pixel(
+                    current_r, current_c, new_rgb = self.get_unset_pixel(
                         current_r,
                         current_c,
                         index,
-                        self.image_targets[name]
+                        pix,
+                        image_size,
+                        self_pixel_x_start,
+                        self_pixel_y_start,
                     )
-                    current_r, current_c, new_rgb = pixel_info
 
                     # get converted color
                     new_rgb_hex = ColorMapper.rgb_to_hex(new_rgb)
                     pixel_color_index = ColorMapper.COLOR_MAP[new_rgb_hex]
 
-                    logger.info(f"Account Placing: {name}")
+                    logger.info("\nAccount Placing: ", name, "\n")
 
                     # draw the pixel onto r/place
                     # There's a better way to do this
                     canvas = 0
-                    pixel_x_start = self.pixel_x_start + current_r
-                    pixel_y_start = self.pixel_y_start + current_c
+                    pixel_x_start = self_pixel_x_start + current_r
+                    pixel_y_start = self_pixel_y_start + current_c
 
                     canvas = (3 * math.floor(pixel_x_start / 1000)) + math.floor(pixel_y_start / 1000)
 
@@ -720,17 +741,50 @@ class PlaceClient:
                         index,
                     )
 
-                    current_r = randint(0,self.images[self.image_targets[name]]["width"])
-                    current_c = randint(0,self.images[self.image_targets[name]]["height"])
+                    current_r = randint(0,image_size[0])
+                    current_c = randint(0,image_size[1])
+
+                    # exit when all pixels drawn
+                    if current_c >= image_size[1]:
+                        logger.info("Thread #{} :: image completed", index)
+                        break
+            
+            if not repeat_forever:
+                break
+
+    # Update templates
+    def update_templates(self):
+        # Reduce CPU usage by looping every 5 minutes
+        while not self.stop_event.wait(timeout=300):
+            # Get templates
+            templates = utils.get_templates(self)
+            if templates is None:
+                continue
+            x_start, y_start, image = templates
+
+            # Update information
+            with self.image_lock:
+                self.pix = image.load()
+                self.image_size = image.size
+                self.raw_pixel_x_start = x_start - 500
+                self.raw_pixel_y_start = y_start - 500
+                self.pixel_x_start = self.raw_pixel_x_start + 1500
+                self.pixel_y_start = self.raw_pixel_y_start + 1000
+
+            logger.info("Templates updated")
 
     def start(self):
-        stop_event = threading.Event()
+        self.stop_event.clear()
 
         threads = [
             threading.Thread(
+                target=self.update_templates,
+            )
+        ] + [
+            threading.Thread(
                 target=self.task,
                 args=[index, worker, self.json_data["workers"][worker]],
-                kwargs={"stop_event": stop_event},)
+            )
             for index, worker in enumerate(self.json_data["workers"])
         ]
 
@@ -745,7 +799,7 @@ class PlaceClient:
                 time.sleep(0.1)
         except KeyboardInterrupt:
             logger.warning("KeyboardInterrupt received, killing threads...")
-            stop_event.set()
+            self.stop_event.set()
             logger.warning("Threads killed, exiting...")
             exit(0)
 

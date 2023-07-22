@@ -156,8 +156,12 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 
+# vscode settings
+.vscode/
+
 config*.json
 images/*
 *.png
 *.jpg
 *.jpeg
+update_config.py
