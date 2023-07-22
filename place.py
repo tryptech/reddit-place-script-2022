@@ -188,7 +188,7 @@ class PlaceClient:
                 response.json()["data"]["act"]["data"][0]
                 ["data"]["nextAvailablePixelTimestamp"]
             )
-            logger.info("Thread {}: Succeeded placing pixel", username)
+            logger.success("Thread {}: Succeeded placing pixel", username)
             return next_time
         
         logger.debug(response.json().get("errors"))
@@ -253,7 +253,6 @@ class PlaceClient:
 
             # wait until next rate limit expires
             logger.debug("Thread {}: Until next placement, {}s", username, time_to_wait)
-            time.sleep(time_to_wait)
 
     def start(self):
         self.stop_event.clear()
