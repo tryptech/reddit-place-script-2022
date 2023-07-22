@@ -267,6 +267,7 @@ class PlaceClient:
         ]
 
         for thread in threads:
+            thread.daemon = True
             thread.start()
             # exit(1)
             time.sleep(self.delay_between_launches)
