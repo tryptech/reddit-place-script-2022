@@ -5,6 +5,10 @@ from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 
 
+def clear():
+    os.system("cls||clear")
+    return
+
 def get_json_data(self, config_path):
     configFilePath = os.path.join(os.getcwd(), config_path)
 

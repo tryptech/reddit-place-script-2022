@@ -55,7 +55,7 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
         "https://url.to.the.template1.png",
         "https://url.to.the.template2.png"
     ],
-    // Filter only templates with names in this list
+    // Filter only templates with names in this list, if empty take all
     "names": ["template1_name1", "template1_name2", "template2_name1"],
     //Where the template image will be saved or loaded from
     "image_path": "image.png",
