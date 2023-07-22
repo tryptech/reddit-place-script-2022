@@ -756,7 +756,7 @@ class PlaceClient:
         # Reduce CPU usage by looping every 5 minutes
         while not self.stop_event.wait(timeout=300):
             # Update canvas offsets
-            utils.load_canvas(self, canvas_path)
+            utils.load_canvas(self)
             # Get templates
             templates = utils.load_templates(self)
             if templates is None:
