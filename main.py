@@ -498,10 +498,10 @@ class PlaceClient:
         return x, y, new_rgb
 
     # Draw the input image
-    def task(self, index, name, worker):
+    def task(self, index, name, worker, stop_event=None):
         # Whether image should keep drawing itself
         repeat_forever = True
-        while True:
+        while not (stop_event and stop_event.is_set()):
             # last_time_placed_pixel = math.floor(time.time())
 
             # note: Reddit limits us to place 1 pixel every 5 minutes, so I am setting it to
@@ -528,7 +528,7 @@ class PlaceClient:
             update_str = ""
 
             # Refresh auth tokens and / or draw a pixel
-            while True:
+            while not (stop_event and stop_event.is_set()):
                 # reduce CPU usage
                 time.sleep(1)
 
@@ -724,13 +724,31 @@ class PlaceClient:
                     current_c = randint(0,self.images[self.image_targets[name]]["height"])
 
     def start(self):
-        for index, worker in enumerate(self.json_data["workers"]):
+        stop_event = threading.Event()
+
+        threads = [
             threading.Thread(
                 target=self.task,
                 args=[index, worker, self.json_data["workers"][worker]],
-            ).start()
+                kwargs={"stop_event": stop_event},)
+            for index, worker in enumerate(self.json_data["workers"])
+        ]
+
+        for thread in threads:
+            thread.start()
             # exit(1)
             time.sleep(self.delay_between_launches)
+        
+        # check for ctrl+c
+        try:
+            while True:
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            logger.warning("KeyboardInterrupt received, killing threads...")
+            stop_event.set()
+            logger.warning("Threads killed, exiting...")
+            exit(0)
+
 
 
 @click.command()
