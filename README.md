@@ -4,15 +4,6 @@
 [![forthebadge](https://forthebadge.com/images/badges/made-with-python.svg)](https://forthebadge.com)
 [![forthebadge](https://forthebadge.com/images/badges/60-percent-of-the-time-works-every-time.svg)](https://forthebadge.com)
 
-# HELP WANTED!
-
-This project now has many bugs and I have no ability to debug. More developers are wanted.
-
-Confirmed Bugs:
-
-- Randomly authorization failed
-- Wrongly color converting
-
 # Thanks to everyone who contributed! r/place is now over!
 <a href="https://github.com/rdeepak2002/reddit-place-script-2022/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=rdeepak2002/reddit-place-script-2022" />
