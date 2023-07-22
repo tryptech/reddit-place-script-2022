@@ -27,6 +27,7 @@ import src.utils as utils
 class PlaceClient:
     def __init__(self, config_path):
         self.logger = logger
+        logger.add('logs/{time}.log', rotation='1 day')
 
         # Data
         self.json_data = utils.get_json_data(self, config_path)
@@ -753,7 +754,7 @@ class PlaceClient:
         # Reduce CPU usage by looping every 5 minutes
         while not self.stop_event.wait(timeout=300):
             # Get templates
-            templates = utils.get_templates(self)
+            templates = utils.load_templates(self)
             if templates is None:
                 continue
             x_start, y_start, image = templates
