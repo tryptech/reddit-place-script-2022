@@ -420,6 +420,7 @@ class PlaceClient:
                 self.pix = image.load()
                 self.image_size = image.size
 
+            utils.clear()
             logger.info("Templates updated")
 
     def start(self):
