@@ -23,6 +23,12 @@ class PlaceClient:
             and self.json_data["template_urls"] is not None
             else []
         )
+        self.priority_url = (
+            self.json_data["priority_url"]
+            if "priority_url" in self.json_data
+            and self.json_data["priority_url"] is not None
+            else ""
+        )
         self.canvas_path = canvas_path
         self.canvas = utils.get_json_data(self, self.canvas_path)
         self.image_path = (
@@ -117,6 +123,7 @@ class PlaceClient:
                     .convert("RGB")
                     .load()
                 )
+                self.wrong_pixels = []
                 logger.info("Thread {}: Board image updated", username)
 
     def get_wrong_pixel(self, username):
@@ -171,7 +178,7 @@ class PlaceClient:
         # canvas structure:
         # 0 | 1 | 2
         # 3 | 4 | 5
-        subcanvas = (3 * math.floor(coord[0] / 1000)) + math.floor(coord[1] / 1000)
+        subcanvas = math.floor(coord[0] / 1000) + 3 * math.floor(coord[1] / 1000)
 
         logger.warning(
             "Thread {}: Attempting to place {} pixel at {}",
@@ -271,12 +278,20 @@ class PlaceClient:
             time.sleep(self.delay_between_launches)
         
         try:
-            while True:
-                for _ in range(300):
+            run = True
+            while run:
+                for _ in range(10):
                     time.sleep(1)
                     # Update board image every seconds
+                    logger.debug("Allowing board image update")
                     self.board_outdated.set()
+                    # Check if any threads are alive
+                    if not any(thread.is_alive() for thread in threads):
+                        logger.warning("All threads died, exiting...")
+                        run = False
+                        break
                 # Update template image and canvas offsets every 5 minutes
+                logger.debug("Allowing template image and canvas offsets update")
                 self.template_outdated.set()
         # Check for ctrl+c
         except KeyboardInterrupt:

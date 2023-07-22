@@ -87,13 +87,21 @@ def load_template_data(self):
         if not sources:
             continue  # skip
         templates += sources['templates']
-    
-    names = (
+
+    priority_names = []
+    try:
+        for priority_template in get_json_from_url(self, self.priority_url)['templates']:
+            priority_names.append(priority_template['name'])
+    except requests.exceptions.HTTPError:
+        self.logger.warning("Failed to load priority templates")
+
+    names = priority_names or (
         self.json_data["names"]
         if "names" in self.json_data
         and self.json_data["names"]
         else []
     )
+
     if names:
         templates = list(filter(lambda template: template['name'] in names, templates))
 
