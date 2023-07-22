@@ -23,7 +23,7 @@ def set_pixel(self, coord, color_index, canvas_index, access_token):
                 "input": {
                     "actionName": "r/replace:set_pixel",
                     "PixelMessageData": {
-                        "coordinate": {"x": coord[0], "y": coord[1]},
+                        "coordinate": {"x": coord[0] % 1000, "y": coord[1] % 1000},
                         "colorIndex": color_index,
                         "canvasIndex": canvas_index,
                     },

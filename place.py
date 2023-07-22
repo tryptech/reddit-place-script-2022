@@ -149,8 +149,8 @@ class PlaceClient:
             logger.debug("Thread {}: Board is still up-to-date", username)
             return
         logger.debug("Thread {}: Board has been updated", username)
-        for x in range(0, self.size[0]):
-            for y in range(0, self.size[1]):
+        for x in range(self.size[0]):
+            for y in range(self.size[1]):
                 target_rgba = self.template[x, y]
                 if target_rgba[-1] == 0:
                     continue  # skip transparent pixels
@@ -172,7 +172,7 @@ class PlaceClient:
         # canvas structure:
         # 0 | 1 | 2
         # 3 | 4 | 5
-        subcanvas = math.floor(coord[0] / 1000) + 3 * math.floor(coord[1] / 1000)
+        subcanvas = coord[0] // 1000 + 3 * (coord[1] // 1000)
 
         logger.warning(
             "Thread {}: Attempting to place {} pixel at {}",
@@ -275,7 +275,7 @@ class PlaceClient:
         try:
             run = True
             while run:
-                for _ in range(5):
+                for _ in range(100):
                     time.sleep(1)
                     # Update board image every seconds
                     logger.debug("Allowing board image update")
