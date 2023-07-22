@@ -264,7 +264,7 @@ class PlaceClient:
                 args=[username, password],
             )
             for username, password in zip(self.json_data["workers"],
-                                          self.json_data["workers"]["passwords"])
+                                          self.json_data["workers"]["password"])
         ]
 
         for thread in threads:
