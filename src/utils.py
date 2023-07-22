@@ -83,6 +83,14 @@ def load_templates(self):
         if not sources:
             continue  # skip
         templates += sources['templates']
+    
+    names = (
+        self.json_data["names"]
+        if "names" in self.json_data
+        and self.json_data["names"]
+        else []
+    )
+    templates = list(filter(lambda template: template['name'] in names, templates))
 
     images = []
     for sources in templates:
