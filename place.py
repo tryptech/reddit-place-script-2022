@@ -118,7 +118,7 @@ class PlaceClient:
             raw_y,
         )
 
-        response = connect.set_pixel(self, [x, y],color_index_in, canvas_index, access_token_in, proxy.get_random_proxy(self, name=None))
+        response = connect.set_pixel(self, [x, y],color_index_in, canvas_index, access_token_in)
         logger.debug(
             "Thread #{} - {}: Received response: {}", thread_index, name, response.text
         )
@@ -196,11 +196,11 @@ class PlaceClient:
                 wasWaiting = False
                 time.sleep(index * self.delay_between_launches)
 
-            if x >= image_size[0]-1:
+            if x >= image_size[0]:
                 y += 1
                 x = 0
 
-            if y >= image_size[1]-1:
+            if y >= image_size[1]:
 
                 y = 0
 
@@ -236,11 +236,11 @@ class PlaceClient:
                     "{}, {}, {}, {}",
                     pix2[pix2_pos[0], pix2_pos[1]],
                     new_rgb,
-                    target_rgba[:-1] != 255,
+                    target_rgba[-1] != 255,
                     pix2[x, y] != new_rgb,
                 )
 
-                if target_rgba[:-1] == 255:
+                if target_rgba[-1] == 255:
                     logger.debug(
                         "Thread #{} : Replacing {} pixel at: {},{} with {} color",
                         index,

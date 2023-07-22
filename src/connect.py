@@ -13,7 +13,7 @@ import src.proxy as proxy
 from loguru import logger
 from bs4 import BeautifulSoup
 
-def set_pixel(self, coord, color_index, canvas_index, access_token, proxy):
+def set_pixel(self, coord, color_index, canvas_index, access_token):
     url = "https://gql-realtime-2.reddit.com/query"
 
     payload = json.dumps(
