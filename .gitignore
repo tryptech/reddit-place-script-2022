@@ -160,3 +160,4 @@ config*.json
 *.png
 *.jpg
 *.jpeg
+update_config.py
