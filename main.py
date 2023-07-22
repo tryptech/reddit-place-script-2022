@@ -25,7 +25,7 @@ import src.utils as utils
 
 
 class PlaceClient:
-    def __init__(self, config_path):
+    def __init__(self, config_path, canvas_path):
         self.logger = logger
 
         # Data
@@ -37,6 +37,8 @@ class PlaceClient:
             and self.json_data["template_urls"] is not None
             else []
         )
+        self.canvas_path = canvas_path
+        self.canvas = utils.get_json_data(self, self.canvas_path)
         self.image_path = (
             self.json_data["image_path"]
             if "image_path" in self.json_data
@@ -752,8 +754,10 @@ class PlaceClient:
     def update_templates(self):
         # Reduce CPU usage by looping every 5 minutes
         while not self.stop_event.wait(timeout=300):
+            # Update canvas offsets
+            utils.load_canvas(self, canvas_path)
             # Get templates
-            templates = utils.get_templates(self)
+            templates = utils.load_templates(self)
             if templates is None:
                 continue
             x_start, y_start, image = templates
@@ -814,14 +818,20 @@ class PlaceClient:
     default="config.json",
     help="Location of config.json",
 )
-def main(debug: bool, config: str):
+@click.option(
+    "-C",
+    "--canvas",
+    default="canvas.json",
+    help="Location of canvas.json",
+)
+def main(debug: bool, config: str, canvas: str):
 
     if not debug:
         # default loguru level is DEBUG
         logger.remove()
         logger.add(sys.stderr, level="INFO")
 
-    client = PlaceClient(config_path=config)
+    client = PlaceClient(config_path=config, canvas_path=canvas)
     # Start everything
     client.start()
 

@@ -120,3 +120,9 @@ def load_templates(self):
     self.logger.info("Saved template image to {}", self.image_path)
 
     return x_start, y_start, image
+
+def load_canvas(self):
+    # Load the canvas offsets from file
+    self.canvas = get_json_data(self, self.canvas_path)
+    self.logger.info("Updated canvas offsets")
+    return
