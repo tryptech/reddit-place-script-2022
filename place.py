@@ -51,12 +51,6 @@ class PlaceClient:
             else 0
         )
 
-        self.legacy_transparency = (
-            self.json_data["legacy_transparency"]
-            if "legacy_transparency" in self.json_data
-            and self.json_data["legacy_transparency"] is not None
-            else True
-        )
         proxy.Init(self)
 
         # Color palette
@@ -73,13 +67,7 @@ class PlaceClient:
         self.template_outdated = threading.Event()
 
         # Load template
-        coord, template = (
-            utils.load_template_data(self)
-            or (
-                self.json_data["image_start_coords"],
-                utils.load_image(self)
-            )
-        )
+        coord, template = utils.load_template_data(self)
 
         # Template information
         self.coord = (
@@ -161,7 +149,7 @@ class PlaceClient:
                 if target_rgba[-1] == 0:
                     continue  # skip transparent pixels
                 new_rgb = ColorMapper.closest_color(
-                    target_rgba, self.rgb_colors_array, self.legacy_transparency
+                    target_rgba, self.rgb_colors_array
                 )
                 if self.board[x, y] == new_rgb:
                     continue  # skip correct pixels

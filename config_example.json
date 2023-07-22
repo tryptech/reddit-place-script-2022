@@ -7,8 +7,6 @@
     "priority_url": "https://template.vtubers.place/api/Template/raw/priority",
     "names": ["holopro", "vshojo", "nijisanji"],
     "image_path": "template.png",
-    "image_start_coords": [741, 610],
-    "legacy_transparency": true,
     "thread_delay": 2,
     "unverified_place_frequency": false,
     "compact_logging": true,

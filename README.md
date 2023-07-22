@@ -61,8 +61,6 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
     "names": ["template1_name1", "template1_name2", "template2_name1"],
     //Where the template image will be saved or loaded from
     "image_path": "image.png",
-    // [x,y] where you want the top left pixel of the local image to be drawn on canvas if template_urls is empty
-    "image_start_coords": [741, 610],
     // delay between starting threads (can be 0)
     "thread_delay": 2,
     // array of accounts to use
@@ -113,7 +111,6 @@ Just create multiple child arrays to "workers" in the .json file:
 ```json
 {
     "image_path": "image.png",
-    "image_start_coords": [741, 610],
     "thread_delay": 2,
 
     "workers": {
