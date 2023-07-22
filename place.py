@@ -67,7 +67,10 @@ class PlaceClient:
         self.template_outdated = threading.Event()
 
         # Load template
-        coord, template = utils.load_template_data(self)
+        data = utils.load_template_data(self)
+        if not data:
+            exit(1)  # exit if template is empty
+        coord, template = data
 
         # Template information
         self.coord = (
@@ -90,7 +93,10 @@ class PlaceClient:
             if self.template_outdated.is_set():
                 self.template_outdated.clear()
                 logger.debug("Thread {}: Updating template image and canvas offsets", username)
-                coord, template = utils.load_template_data(self)
+                data = utils.load_template_data(self)
+                if not data:
+                    return  # skip updating
+                coord, template = data
                 self.canvas = utils.get_json_data(self, self.canvas_path)
                 self.coord = (
                     coord[0] + self.canvas['offset']['template_api'][0],
@@ -268,7 +274,7 @@ class PlaceClient:
         try:
             run = True
             while run:
-                for _ in range(10):
+                for _ in range(5):
                     time.sleep(1)
                     # Update board image every seconds
                     logger.debug("Allowing board image update")
