@@ -25,26 +25,6 @@ def get_json_data(self, config_path):
     # Read the input image.jpg file
 
 
-def load_image(self):
-    # Read and load the image to draw and get its dimensions
-    try:
-        image = Image.open(self.image_path)
-    except FileNotFoundError:
-        self.logger.exception("Failed to load image")
-        exit()
-    except UnidentifiedImageError:
-        self.logger.exception("File found, but couldn't identify image format")
-        exit()
-
-    # Convert all images to RGBA - Transparency should only be supported with PNG
-    if image.mode != "RGBA":
-        image = image.convert("RGBA")
-        self.logger.debug("Converted to rgba")
-    
-    self.logger.debug("Loaded image size: {}", image.size)
-    return image
-
-
 def get_json_from_url(self, url):
     # Get the json data from the url
     try:
@@ -87,22 +67,30 @@ def load_template_data(self):
         if not sources:
             continue  # skip
         templates += sources['templates']
+    
+    original_names = set(template['name'] for template in templates)
 
-    priority_names = []
+    priority_names = set()
     try:
-        for priority_template in get_json_from_url(self, self.priority_url)['templates']:
-            priority_names.append(priority_template['name'])
+        if self.priority_url:
+            for priority_template in get_json_from_url(self, self.priority_url)['templates']:
+                priority_names.add(priority_template['name'])
     except requests.exceptions.HTTPError:
         self.logger.warning("Failed to load priority templates")
 
-    names = priority_names or (
-        self.json_data["names"]
-        if "names" in self.json_data
-        and self.json_data["names"]
-        else []
-    )
+    # use priority unless nothing matches, then use names
+    names = priority_names
+    if not (priority_names & original_names):
+        self.logger.warning("No priority templates found in template urls")
+        names = set(
+            self.json_data["names"]
+            if "names" in self.json_data
+            and self.json_data["names"]
+            else []
+        )
 
-    if names:
+    # use names unless nothing matches, then use all templates
+    if not (names & original_names):
         templates = list(filter(lambda template: template['name'] in names, templates))
 
     images = []
