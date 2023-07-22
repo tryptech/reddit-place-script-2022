@@ -162,10 +162,8 @@ class PlaceClient:
                 self.wrong_pixels.append(((x, y), new_rgb))
 
     def get_visual_position(self, coord, subcanvas):
-        canvas_offset_x = int(subcanvas % 3) * 1000
-        canvas_offset_y = int(math.floor(subcanvas / 3)) * 1000
-        raw_x = canvas_offset_x + coord[0] + self.canvas['offset']['visual'][0]
-        raw_y = canvas_offset_y + coord[1] + self.canvas['offset']['visual'][1]
+        raw_x = coord[0] + self.canvas['offset']['visual'][0]
+        raw_y = coord[1] + self.canvas['offset']['visual'][1]
         return raw_x, raw_y
 
     def set_pixel_and_check_ratelimit(self, color_index, coord, username):
