@@ -11,7 +11,7 @@ toJSON = {
         int(json.loads(os.getenv("ENV_DRAW_Y_START"))),
     ],
     "thread_delay": 3,
-    "unverified_place_frequency": False,
+    "unverified_rate_limit": False,
     "proxies": None,
     "workers": {},
 }

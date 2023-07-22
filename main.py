@@ -1,8 +1,9 @@
 import click
 import sys
-
 from loguru import logger
+
 from place import PlaceClient
+
 
 @click.command()
 @click.option(
