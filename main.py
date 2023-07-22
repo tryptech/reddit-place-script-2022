@@ -74,9 +74,8 @@ class PlaceClient:
         )
         self.first_run_counter = 0
 
-        # Initialize-functions
-        utils.load_image(self)
-
+        self.stop_event = threading.Event()
+        
         self.waiting_thread_index = -1
 
     """ Main """
@@ -220,7 +219,7 @@ class PlaceClient:
 
     def get_board(self, access_token_in):
         logger.debug("Connecting and obtaining board images")
-        while True:
+        while not self.stop_event.is_set():
             try:
                 ws = create_connection(
                     "wss://gql-realtime-2.reddit.com/query",
@@ -243,7 +242,7 @@ class PlaceClient:
                 }
             )
         )
-        while True:
+        while not self.stop_event.is_set():
             try:
                 msg = ws.recv()
             except WebSocketConnectionClosedException as e:
@@ -278,7 +277,7 @@ class PlaceClient:
             )
         )
 
-        while True:
+        while not self.stop_event.is_set():
             canvas_payload = json.loads(ws.recv())
             if canvas_payload["type"] == "data":
                 canvas_details = canvas_payload["payload"]["data"]["subscribe"]["data"]
@@ -409,7 +408,7 @@ class PlaceClient:
         imgOutdated = True
         wasWaiting = False
 
-        while True:
+        while not self.stop_event.is_set():
             time.sleep(0.05)
             if self.waiting_thread_index != -1 and self.waiting_thread_index != index:
                 x = originalX
@@ -488,10 +487,17 @@ class PlaceClient:
         return x, y, new_rgb
 
     # Draw the input image
-    def task(self, index, name, worker, stop_event=None):
+    def task(self, index, name, worker):
         # Whether image should keep drawing itself
         repeat_forever = True
-        while not (stop_event and stop_event.is_set()):
+        while not self.stop_event.is_set():
+            # Update information
+            with self.image_lock:
+                pix = self.pix
+                image_size = self.image_size
+                self_pixel_x_start = self.pixel_x_start
+                self_pixel_y_start = self.pixel_y_start
+
             # last_time_placed_pixel = math.floor(time.time())
 
             # note: Reddit limits us to place 1 pixel every 5 minutes, so I am setting it to
@@ -515,10 +521,8 @@ class PlaceClient:
             update_str = ""
 
             # Refresh auth tokens and / or draw a pixel
-            while not (stop_event and stop_event.is_set()):
-                # reduce CPU usage
-                time.sleep(1)
-
+            # Reduce CPU usage by sleeping 1 second
+            while not self.stop_event.wait(timeout=1):
                 # get the current time
                 current_timestamp = math.floor(time.time())
 
@@ -574,7 +578,7 @@ class PlaceClient:
                         )
                         exit(1)
 
-                    while True:
+                    while not self.stop_event.is_set():
                         try:
                             client = requests.Session()
                             client.proxies = proxy.get_random_proxy(self, name)
@@ -717,7 +721,7 @@ class PlaceClient:
                 break
 
     def start(self):
-        stop_event = threading.Event()
+        self.stop_event.clear()
 
         threads = [
             threading.Thread(
@@ -738,7 +742,7 @@ class PlaceClient:
                 time.sleep(0.1)
         except KeyboardInterrupt:
             logger.warning("KeyboardInterrupt received, killing threads...")
-            stop_event.set()
+            self.stop_event.set()
             logger.warning("Threads killed, exiting...")
             exit(0)
 
