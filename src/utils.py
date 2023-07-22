@@ -56,9 +56,8 @@ def load_api(self):
                 'height': image_file.size[1],
             })
             image_file.close()
-            self.logger.info(template)
         else:
-            self.logger.info(f"Failed to download image '{template['name']}'")
+            self.logger.exception(f"Failed to download image '{template['name']}'")
 
 def load_image(self):
     # Read and load the image to draw and get its dimensions
@@ -73,9 +72,9 @@ def load_image(self):
     # Convert all images to RGBA - Transparency should only be supported with PNG
     if im.mode != "RGBA":
         im = im.convert("RGBA")
-        self.logger.info("Converted to rgba")
+        self.logger.debug("Converted to rgba")
     self.pix = im.load()
 
-    self.logger.info("Loaded image size: {}", im.size)
+    self.logger.debug("Loaded image size: {}", im.size)
 
     self.image_size = im.size

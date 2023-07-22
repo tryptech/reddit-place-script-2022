@@ -414,7 +414,7 @@ class PlaceClient:
         wasWaiting = False
 
         image_selected = self.images[image_index]
-        logger.info(image_selected)
+        logger.debug(image_selected)
 
         while True:
             time.sleep(0.05)
@@ -514,8 +514,8 @@ class PlaceClient:
             next_pixel_placement_time = math.floor(time.time()) + pixel_place_frequency
 
             # select random image
-            self.image_targets[index] = randint(0,len(self.images)-1)
-            image_data = Image.open(self.images[self.image_targets[index]]['path'])
+            self.image_targets[name] = randint(0,len(self.images)-1)
+            image_data = Image.open(self.images[self.image_targets[name]]['path'])
             # select random pixel from image
             current_r = -1
             current_c = -1
@@ -636,7 +636,7 @@ class PlaceClient:
                         return
                     else:
                         logger.success("{} - Authorization successful!", username)
-                    logger.info("Obtaining access token...")
+                    logger.debug("Obtaining access token...")
                     r = client.get(
                         "https://new.reddit.com/",
                         proxies=proxy.get_random_proxy(self, name),
@@ -668,7 +668,7 @@ class PlaceClient:
                         index
                     ] = current_timestamp + int(access_token_expires_in_seconds)
                     if not self.compactlogging:
-                        logger.info(
+                        logger.debug(
                             "Received new access token: {}************",
                             self.access_tokens.get(index)[:5],
                         )
@@ -691,7 +691,7 @@ class PlaceClient:
                         current_r,
                         current_c,
                         index,
-                        self.image_targets[index]
+                        self.image_targets[name]
                     )
                     current_r, current_c, new_rgb = pixel_info
 
@@ -699,7 +699,7 @@ class PlaceClient:
                     new_rgb_hex = ColorMapper.rgb_to_hex(new_rgb)
                     pixel_color_index = ColorMapper.COLOR_MAP[new_rgb_hex]
 
-                    logger.info("Account Placing: ", name, "\n")
+                    logger.info(f"Account Placing: {name}")
 
                     # draw the pixel onto r/place
                     # There's a better way to do this
@@ -720,8 +720,8 @@ class PlaceClient:
                         index,
                     )
 
-                    current_r = randint(0,self.images[self.image_targets[index]]["width"])
-                    current_c = randint(0,self.images[self.image_targets[index]]["height"])
+                    current_r = randint(0,self.images[self.image_targets[name]]["width"])
+                    current_c = randint(0,self.images[self.image_targets[name]]["height"])
 
     def start(self):
         for index, worker in enumerate(self.json_data["workers"]):
