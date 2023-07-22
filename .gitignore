@@ -157,6 +157,7 @@ crashlytics-build.properties
 fabric.properties
 
 config*.json
+images/*
 *.png
 *.jpg
 *.jpeg

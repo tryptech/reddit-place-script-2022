@@ -61,8 +61,9 @@ class ColorMapper:
         """Find the closest rgb color from palette to a target rgb color, as well as handling transparency"""
 
         # first check is for the alpha channel transparency in ex. png
-        if target_rgb[3] == 0:
-            return (69, 42, 0)
+        if len(target_rgb) == 4:
+            if target_rgb[3] == 0:
+                return (69, 42, 0)
         # second check is for the legacy method of transparency using hex #452A00.
         if target_rgb[:3] == (69, 42, 0) and legacy_transparency:
             return (69, 42, 0)

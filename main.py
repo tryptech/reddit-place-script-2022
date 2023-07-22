@@ -64,6 +64,9 @@ class PlaceClient:
         self.access_tokens = {}
         self.access_token_expires_at_timestamp = {}
 
+        self.images = []
+        self.image_targets = {}
+
         # Image information
         self.pix = None
         self.image_size = None
@@ -75,7 +78,8 @@ class PlaceClient:
         self.first_run_counter = 0
 
         # Initialize-functions
-        utils.load_image(self)
+        utils.load_api(self)
+        #utils.load_images(self)
 
         self.waiting_thread_index = -1
 
@@ -402,16 +406,19 @@ class PlaceClient:
 
         return new_img
 
-    def get_unset_pixel(self, x, y, index):
+    def get_unset_pixel(self, x, y, canvas_index, image_index):
         originalX = x
         originalY = y
         loopedOnce = False
         imgOutdated = True
         wasWaiting = False
 
+        image_selected = self.images[image_index]
+        logger.info(image_selected)
+
         while True:
             time.sleep(0.05)
-            if self.waiting_thread_index != -1 and self.waiting_thread_index != index:
+            if self.waiting_thread_index != -1 and self.waiting_thread_index != canvas_index:
                 x = originalX
                 y = originalY
                 loopedOnce = False
@@ -422,39 +429,34 @@ class PlaceClient:
             # Stagger reactivation of threads after wait
             if wasWaiting:
                 wasWaiting = False
-                time.sleep(index * self.delay_between_launches)
-
-            if x >= self.image_size[0]:
-                y += 1
-                x = 0
-
-            if y >= self.image_size[1]:
-
-                y = 0
+                time.sleep(canvas_index * self.delay_between_launches)
 
             if x == originalX and y == originalY and loopedOnce:
                 logger.info(
                     "Thread #{} : All pixels correct, trying again in 10 seconds... ",
-                    index,
+                    canvas_index,
                 )
-                self.waiting_thread_index = index
+                self.waiting_thread_index = canvas_index
                 time.sleep(10)
                 imgOutdated = True
 
             if imgOutdated:
-                boardimg = self.get_board(self.access_tokens[index])
+                boardimg = self.get_board(self.access_tokens[canvas_index])
                 pix2 = boardimg.convert("RGB").load()
                 imgOutdated = False
 
             logger.debug("{}, {}", x + self.pixel_x_start, y + self.pixel_y_start)
             logger.debug(
-                "{}, {}, boardimg, {}, {}", x, y, self.image_size[0], self.image_size[1]
+                "{}, {}, boardimg, {}, {}", x, y, image_selected["width"], image_selected["height"]
             )
 
-            target_rgb = self.pix[x, y]
+            image = Image.open(image_selected['path']).convert('RGBA')
+            image_data = image.load()
+            target_rgb = image_data[x, y]
+
 
             new_rgb = ColorMapper.closest_color(
-                target_rgb, self.rgb_colors_array, self.legacy_transparency
+                target_rgb[0:3], self.rgb_colors_array, self.legacy_transparency
             )
 
             if pix2[x + self.pixel_x_start, y + self.pixel_y_start] != new_rgb:
@@ -462,15 +464,15 @@ class PlaceClient:
                     "{}, {}, {}, {}",
                     pix2[x + self.pixel_x_start, y + self.pixel_y_start],
                     new_rgb,
-                    new_rgb != (69, 42, 0),
+                    target_rgb[3] == 255,
                     pix2[x, y] != new_rgb,
                 )
 
-                # (69, 42, 0) is a special color reserved for transparency.
-                if new_rgb != (69, 42, 0):
+                # check rgba for full alpha
+                if target_rgb[3] == 255:
                     logger.debug(
                         "Thread #{} : Replacing {} pixel at: {},{} with {} color",
-                        index,
+                        canvas_index,
                         pix2[x + self.pixel_x_start, y + self.pixel_y_start],
                         x + self.pixel_x_start - 1500,
                         y + self.pixel_y_start - 1000,
@@ -478,12 +480,20 @@ class PlaceClient:
                     )
                     break
                 else:
-                    logger.info(
+                    logger.debug(
                         "Transparent Pixel at {}, {} skipped",
                         x + self.pixel_x_start - 1500,
                         y + self.pixel_y_start - 1000,
                     )
             x += 1
+            if x >= image_selected['width']:
+                x = 0
+                y += 1
+            if y >= image_selected['height']:
+                logger.debug(
+                        "Image OK"
+                    )
+                y = 0
             loopedOnce = True
         return x, y, new_rgb
 
@@ -503,13 +513,16 @@ class PlaceClient:
 
             next_pixel_placement_time = math.floor(time.time()) + pixel_place_frequency
 
-            try:
-                # Current pixel row and pixel column being drawn
-                current_r = randint(0,self.image_size[0])
-                current_c = randint(0,self.image_size[1])
-            except Exception:
-                logger.info("You need to provide start_coords to worker '{}'", name)
-                exit(1)
+            # select random image
+            self.image_targets[index] = randint(0,len(self.images)-1)
+            image_data = Image.open(self.images[self.image_targets[index]]['path'])
+            # select random pixel from image
+            current_r = -1
+            current_c = -1
+            while (0 >= current_r < image_data.size[0]):
+                current_r = randint(0,image_data.size[0]-1)
+            while (0 >= current_c <= image_data.size[1]):
+                current_c = randint(0,image_data.size[1]-1)
 
             # Time until next pixel is drawn
             update_str = ""
@@ -674,17 +687,19 @@ class PlaceClient:
                     # target_rgb = pix[current_r, current_c]
 
                     # get current pixel position from input image and replacement color
-                    current_r, current_c, new_rgb = self.get_unset_pixel(
+                    pixel_info = self.get_unset_pixel(
                         current_r,
                         current_c,
                         index,
+                        self.image_targets[index]
                     )
+                    current_r, current_c, new_rgb = pixel_info
 
                     # get converted color
                     new_rgb_hex = ColorMapper.rgb_to_hex(new_rgb)
                     pixel_color_index = ColorMapper.COLOR_MAP[new_rgb_hex]
 
-                    logger.info("\nAccount Placing: ", name, "\n")
+                    logger.info("Account Placing: ", name, "\n")
 
                     # draw the pixel onto r/place
                     # There's a better way to do this
@@ -705,16 +720,8 @@ class PlaceClient:
                         index,
                     )
 
-                    current_r = randint(0,self.image_size[0])
-                    current_c = randint(0,self.image_size[1])
-
-                    # exit when all pixels drawn
-                    if current_c >= self.image_size[1]:
-                        logger.info("Thread #{} :: image completed", index)
-                        break
-
-            if not repeat_forever:
-                break
+                    current_r = randint(0,self.images[self.image_targets[index]]["width"])
+                    current_c = randint(0,self.images[self.image_targets[index]]["height"])
 
     def start(self):
         for index, worker in enumerate(self.json_data["workers"]):
