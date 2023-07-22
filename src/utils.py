@@ -75,7 +75,7 @@ def load_image_from_url(self, url):
     return image
 
 
-def load_templates(self):
+def load_template_data(self):
     # Load the template images from the urls
     templates = []
     for url in self.template_urls:
@@ -113,14 +113,13 @@ def load_templates(self):
     size = (max(ws), max(hs))
 
     # Starting position
-    x_start = min(xs)
-    y_start = min(ys)
+    coord = (min(xs), min(ys))
 
     # Combine all images
     image = Image.new('RGBA', size)  # canvas in RGBA
     for i, x, y in zip(images[::-1], xs[::-1], ys[::-1]):
         image.paste(i, (x, y), i)
-    image = image.crop((x_start, y_start, *size))
+    image = image.crop((*coord, *size))
 
     self.logger.info("Loaded image size: {}", image.size)
 
@@ -128,10 +127,4 @@ def load_templates(self):
     image.save(self.image_path)
     self.logger.info("Saved template image to {}", self.image_path)
 
-    return x_start, y_start, image
-
-def load_canvas(self):
-    # Load the canvas offsets from file
-    self.canvas = get_json_data(self, self.canvas_path)
-    self.logger.info("Updated canvas offsets")
-    return
+    return coord, image

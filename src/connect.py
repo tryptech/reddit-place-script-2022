@@ -68,7 +68,7 @@ def set_pixel(self, coord, color_index, canvas_index, access_token):
         url,
         headers=headers,
         data=payload,
-        proxies=proxy.get_random_proxy(self, name=None),
+        proxies=proxy.get_random_proxy(self, username=None),
     )
 
     return response
@@ -212,7 +212,7 @@ def get_board(self, access_token_in):
                     if img_id in canvas_sockets:
                         logger.debug("Getting image: {}", msg["data"]["name"])
                         img = requests.get(msg["data"]["name"], stream=True,
-                                           proxies=proxy.get_random_proxy(self, name=None),)
+                                           proxies=proxy.get_random_proxy(self, username=None),)
                         if not img.status_code == 404:
                             imgs.append(
                                 [
