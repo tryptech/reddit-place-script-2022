@@ -90,13 +90,16 @@ def load_template_data(self):
         )
 
     # use names unless nothing matches, then use all templates
-    if not (names & original_names):
+    if names & original_names:
         templates = list(filter(lambda template: template['name'] in names, templates))
+    else:
+        self.logger.warning("No template matches names")
 
     images = []
     for sources in templates:
         image = load_image_from_url(self, sources['sources'][0])
         if not image:
+            self.logger.warning("Failed to load image for template {}", sources['name'])
             continue  # skip
         images.append(image)
     
