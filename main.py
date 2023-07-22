@@ -27,6 +27,7 @@ import src.utils as utils
 class PlaceClient:
     def __init__(self, config_path, canvas_path):
         self.logger = logger
+        logger.add('logs/{time}.log', rotation='1 day')
 
         # Data
         self.json_data = utils.get_json_data(self, config_path)
