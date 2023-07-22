@@ -261,10 +261,9 @@ class PlaceClient:
         threads = [
             threading.Thread(
                 target=self.task,
-                args=[username, password],
+                args=[username, self.json_data["workers"][username]["password"]]
             )
-            for username, password in zip(self.json_data["workers"],
-                                          self.json_data["workers"]["password"])
+            for username in self.json_data["workers"].keys()
         ]
 
         for thread in threads:
