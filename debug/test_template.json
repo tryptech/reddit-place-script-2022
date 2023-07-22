@@ -1,0 +1,1 @@
+{"faction":"Test Config","contact":"https://github.com/tryptech/reddit-place-script-2023","templates":[{"name":"test","sources":["https://raw.githubusercontent.com/tryptech/reddit-place-script-2023/main/debug/test_template.png"],"x":998,"y":277,"frameWidth":null,"frameHeight":null,"frameRate":null,"frameCount":null,"startTime":null,"looping":null}],"whitelist":[]}
