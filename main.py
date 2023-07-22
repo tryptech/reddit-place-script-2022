@@ -712,6 +712,8 @@ class PlaceClient:
                         index,
                         pix,
                         image_size,
+                        self_pixel_x_start,
+                        self_pixel_y_start,
                     )
 
                     # get converted color
