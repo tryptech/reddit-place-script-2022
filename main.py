@@ -76,7 +76,7 @@ class PlaceClient:
         self.access_token_expires_at_timestamp = {}
 
         # Load templates
-        x_start, y_start, image = (
+        self.x_start, self.y_start, image = (
             utils.load_templates(self)
             or (
                 *self.json_data["image_start_coords"],
@@ -88,12 +88,6 @@ class PlaceClient:
         self.image_lock = threading.Lock()
         self.pix = image.load()
         self.image_size = image.size
-
-        # Start coordinates
-        self.raw_pixel_x_start: int = x_start - 500
-        self.raw_pixel_y_start: int = y_start - 500
-        self.pixel_x_start = self.raw_pixel_x_start + 1500
-        self.pixel_y_start = self.raw_pixel_y_start + 1000
 
         self.first_run_counter = 0
 
@@ -107,8 +101,8 @@ class PlaceClient:
     def show_raw_pixel_coordinate(self, x, y, canvas_index):
         canvas_offset_x = int(canvas_index % 3) * 1000
         canvas_offset_y = int(math.floor(canvas_index / 3)) * 1000
-        raw_x = canvas_offset_x + x - 1500
-        raw_y = canvas_offset_y + y - 1000
+        raw_x = canvas_offset_x + x + self.canvas['offset']['visual'][0]
+        raw_y = canvas_offset_y + y + self.canvas['offset']['visual'][1]
         return raw_x, raw_y
 
     def set_pixel_and_check_ratelimit(
@@ -227,7 +221,7 @@ class PlaceClient:
                     "nextAvailablePixelTimestamp"
                 ]
             )
-            logger.success(
+            logger.info(
                 "Thread #{} - {}: Succeeded placing pixel", thread_index, name
             )
 
@@ -237,8 +231,8 @@ class PlaceClient:
         # Move the code anywhere you want, I put it here to inspect the API responses.
 
         # Reddit returns time in ms and we need seconds, so divide by 1000
-        # Add rand offset to delay pixel anywhere up to 3 minutes later
-        return (waitTime / 1000) + randint(0,3*60)
+        # Add rand offset to delay pixel anywhere up to 1 minute later
+        return (waitTime / 1000) + randint(0,60)
 
     def get_board(self, access_token_in):
         logger.debug("Connecting and obtaining board images")
@@ -424,8 +418,12 @@ class PlaceClient:
 
         return new_img
 
-    def get_unset_pixel(self, x, y, index, pix, image_size,
-                        self_pixel_x_start, self_pixel_y_start):
+    def get_unset_pixel(self, x, y, index, pix, image_size):
+        # x and y are pixel indicies within pix
+        # image_size is [x, y] tuple
+        # x must be less than image_size[0]
+        # y must be less than image_size[1]
+
         originalX = x
         originalY = y
         loopedOnce = False
@@ -447,11 +445,11 @@ class PlaceClient:
                 wasWaiting = False
                 time.sleep(index * self.delay_between_launches)
 
-            if x >= image_size[0]:
+            if x >= image_size[0]-1:
                 y += 1
                 x = 0
 
-            if y >= image_size[1]:
+            if y >= image_size[1]-1:
 
                 y = 0
 
@@ -469,42 +467,43 @@ class PlaceClient:
                 pix2 = boardimg.convert("RGB").load()
                 imgOutdated = False
 
-            logger.debug("{}, {}", x + self_pixel_x_start, y + self_pixel_y_start)
             logger.debug(
                 "{}, {}, boardimg, {}, {}", x, y, image_size[0], image_size[1]
             )
 
-            target_rgb = pix[x, y]
+            target_rgba = pix[x, y]
 
             new_rgb = ColorMapper.closest_color(
-                target_rgb, self.rgb_colors_array, self.legacy_transparency
+                target_rgba, self.rgb_colors_array, self.legacy_transparency
             )
 
-            if pix2[x + self_pixel_x_start, y + self_pixel_y_start] != new_rgb:
+            pix2_pos = [x + self.x_start + self.canvas['offset']['template_api'][0],
+                    y + self.y_start + self.canvas['offset']['template_api'][1]]
+
+            if pix2[pix2_pos[0], pix2_pos[1]] != new_rgb:
                 logger.debug(
                     "{}, {}, {}, {}",
-                    pix2[x + self_pixel_x_start, y + self_pixel_y_start],
+                    pix2[pix2_pos[0], pix2_pos[1]],
                     new_rgb,
-                    new_rgb != (69, 42, 0),
+                    target_rgba[:-1] != 255,
                     pix2[x, y] != new_rgb,
                 )
 
-                # (69, 42, 0) is a special color reserved for transparency.
-                if new_rgb != (69, 42, 0):
+                if target_rgba[:-1] == 255:
                     logger.debug(
                         "Thread #{} : Replacing {} pixel at: {},{} with {} color",
                         index,
-                        pix2[x + self_pixel_x_start, y + self_pixel_y_start],
-                        x + self_pixel_x_start - 1500,
-                        y + self_pixel_y_start - 1000,
+                        pix2[pix2_pos[0], pix2_pos[1]],
+                        x + self.x_start + self.canvas['offset']['visual'][0],
+                        y + self.y_start + self.canvas['offset']['visual'][1],
                         new_rgb,
                     )
                     break
                 else:
                     logger.debug(
                         "Transparent Pixel at {}, {} skipped",
-                        x + self_pixel_x_start - 1500,
-                        y + self_pixel_y_start - 1000,
+                        x + self.x_start + self.canvas['offset']['visual'][0],
+                        y + self.y_start + self.canvas['offset']['visual'][1],
                     )
             x += 1
             loopedOnce = True
@@ -519,8 +518,6 @@ class PlaceClient:
             with self.image_lock:
                 pix = self.pix
                 image_size = self.image_size
-                self_pixel_x_start = self.pixel_x_start
-                self_pixel_y_start = self.pixel_y_start
 
             # last_time_placed_pixel = math.floor(time.time())
 
@@ -534,8 +531,8 @@ class PlaceClient:
             next_pixel_placement_time = math.floor(time.time()) + pixel_place_frequency
 
             # Current pixel row and pixel column being drawn
-            current_r = randint(0,image_size[0])
-            current_c = randint(0,image_size[1])
+            current_r = randint(0,image_size[0]-1)
+            current_c = randint(0,image_size[1]-1)
 
             # Time until next pixel is drawn
             update_str = ""
@@ -550,8 +547,6 @@ class PlaceClient:
                 with self.image_lock:
                     pix = self.pix
                     image_size = self.image_size
-                    self_pixel_x_start = self.pixel_x_start
-                    self_pixel_y_start = self.pixel_y_start
 
                 # log next time until drawing
                 time_until_next_draw = next_pixel_placement_time - current_timestamp
@@ -701,18 +696,13 @@ class PlaceClient:
                     # first_run = False
                     self.first_run_counter += 1
 
-                    # get target color
-                    # target_rgb = pix[current_r, current_c]
-
                     # get current pixel position from input image and replacement color
                     current_r, current_c, new_rgb = self.get_unset_pixel(
                         current_r,
                         current_c,
                         index,
                         pix,
-                        image_size,
-                        self_pixel_x_start,
-                        self_pixel_y_start,
+                        image_size
                     )
 
                     # get converted color
@@ -723,11 +713,11 @@ class PlaceClient:
 
                     # draw the pixel onto r/place
                     # There's a better way to do this
-                    canvas = 0
-                    pixel_x_start = self_pixel_x_start + current_r
-                    pixel_y_start = self_pixel_y_start + current_c
+                    subcanvas = 0
+                    pixel_x_start = self.x_start + current_r + self.canvas['offset']['template_api'][0]
+                    pixel_y_start = self.y_start + current_c + self.canvas['offset']['template_api'][1]
 
-                    canvas = (3 * math.floor(pixel_x_start / 1000)) + math.floor(pixel_y_start / 1000)
+                    subcanvas = (3 * math.floor(pixel_x_start / 1000)) + math.floor(pixel_y_start / 1000)
 
                     # draw the pixel onto r/place
                     next_pixel_placement_time = self.set_pixel_and_check_ratelimit(
@@ -736,17 +726,12 @@ class PlaceClient:
                         pixel_y_start%1000,
                         name,
                         pixel_color_index,
-                        canvas,
+                        subcanvas,
                         index,
                     )
 
-                    current_r = randint(0,image_size[0])
-                    current_c = randint(0,image_size[1])
-
-                    # exit when all pixels drawn
-                    if current_c >= image_size[1]:
-                        logger.info("Thread #{} :: image completed", index)
-                        break
+                    current_r = randint(0,image_size[0]-1)
+                    current_c = randint(0,image_size[1]-1)
             
             if not repeat_forever:
                 break
@@ -756,21 +741,17 @@ class PlaceClient:
         # Reduce CPU usage by looping every 5 minutes
         while not self.stop_event.wait(timeout=300):
             # Update canvas offsets
-            utils.load_canvas(self, canvas_path)
+            utils.load_canvas(self, self.canvas_path)
             # Get templates
             templates = utils.load_templates(self)
             if templates is None:
                 continue
-            x_start, y_start, image = templates
+            self.x_start, self.y_start, image = templates
 
             # Update information
             with self.image_lock:
                 self.pix = image.load()
                 self.image_size = image.size
-                self.raw_pixel_x_start = x_start - 500
-                self.raw_pixel_y_start = y_start - 500
-                self.pixel_x_start = self.raw_pixel_x_start + 1500
-                self.pixel_y_start = self.raw_pixel_y_start + 1000
 
             logger.info("Templates updated")
 

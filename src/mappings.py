@@ -52,7 +52,7 @@ class ColorMapper:
         25: "Brown",
         26: "Beige",
         27: "Black",
-        28: "Dark gray",
+        28: "ark gray",
         29: "Gray",
         30: "Light Gray",
         31: "White",
