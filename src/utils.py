@@ -80,8 +80,8 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
         self.logger.warning("Failed to load priority templates")
 
     # use priority unless nothing matches, then use names
-    names = priority_names
-    if not (priority_names & original_names):
+    names = priority_names & original_names
+    if not names:
         self.logger.warning("No priority templates found in template urls")
         names = set(
             self.json_data["names"]
@@ -91,7 +91,9 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
         )
 
     # use names unless nothing matches, then use all templates
-    if names & original_names:
+    names = names & original_names
+    self.logger.debug("Using templates: {}", names)
+    if names:
         templates = list(filter(lambda template: template['name'] in names, templates))
     else:
         self.logger.warning("No template matches names")
@@ -115,13 +117,18 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
     dims = coords + sizes
     # Starting position
     coord = np.min(coords, axis=0)
-    size = np.max(dims, axis=0) - coord
+    dim = np.max(dims, axis=0)
 
     # Combine all images
-    image = Image.new('RGBA', size)  # canvas in RGBA
+    image = Image.new('RGBA', (*dim,))  # canvas in RGBA
     for i, c in zip(images[::-1], coords[::-1]):
-        image.paste(i, c, i)
-    image = image.crop((*coord, *size))
+        image.paste(i, (*c,), i)
+    self.logger.debug("coords: {}", coords)
+    self.logger.debug("sizes: {}", sizes)
+    self.logger.debug("dims: {}", dims)
+    self.logger.debug("coord: {}", coord)
+    self.logger.debug("dim: {}", dim)
+    image = image.crop((*coord, *dim))
 
     self.logger.info("Loaded image size: {}", image.size)
 

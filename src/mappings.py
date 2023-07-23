@@ -61,7 +61,7 @@ class ColorMapper:
     @staticmethod
     def rgb_to_hex(rgb):
         """Convert rgb tuple to hexadecimal string."""
-        return ("#%02x%02x%02x" % rgb).upper()
+        return ("#%02x%02x%02x" % (*rgb,)).upper()
 
     @staticmethod
     def color_id_to_name(color_id: int):
@@ -72,17 +72,24 @@ class ColorMapper:
 
     @staticmethod
     def closest_color(target_rgb: np.ndarray, rgb_colors_array: np.ndarray) -> np.ndarray:
-        # redmean approximation for sRGB colors
-        mean = (target_rgb[0] + rgb_colors_array[:, 0]) / 2
+        new_rgb = np.empty_like(target_rgb)
+        for y, row in enumerate(target_rgb):
+            for x, color in enumerate(row):
+                # redmean approximation for sRGB colors
+                mean = (color[0] + rgb_colors_array[:, 0]) / (2 * 256)
 
-        # Calculate delta for all colors at once
-        delta = target_rgb - rgb_colors_array
+                # Calculate delta
+                delta2 = (color - rgb_colors_array) ** 2
 
-        # Calculate the color difference using vectorized operations
-        color_diff = np.sqrt(np.sum(np.array([2 + mean/256, 4, 2 + (255-mean)/256]) * delta ** 2, axis=1))
+                # Calculate the color difference
+                color_diff = np.sqrt(
+                    delta2[:, 0] * (2 + mean)
+                    + delta2[:, 1] * 4
+                    + delta2[:, 2] * (3 - mean)
+                )
 
-        # Find the index of the minimum color difference and return the corresponding color
-        return rgb_colors_array[np.argmin(color_diff)]
+                new_rgb[y, x] = rgb_colors_array[np.argmin(color_diff)]
+        return new_rgb
 
 
     @staticmethod

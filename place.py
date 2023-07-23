@@ -127,7 +127,7 @@ class PlaceClient:
                     coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {}",
-                        username, coord + self.coord + np.array(self.convas['offset']['visual'])
+                        username, coord + self.coord + np.array(self.canvas['offset']['visual'])
                     )
                     return coord, new_rgb
             
