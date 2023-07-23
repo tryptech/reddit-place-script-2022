@@ -15,7 +15,8 @@ class PlaceClient:
         logger.add('logs/{time}.log', rotation='1 day')
 
         # Data
-        self.json_data = utils.get_json_data(self, config_path)
+        self.config_path = config_path
+        self.json_data = utils.get_json_data(self, self.config_path)
         
         self.template_urls = (
             self.json_data["template_urls"]
@@ -247,37 +248,42 @@ class PlaceClient:
 
     def start(self):
         self.stop_event.clear()
+        threads = {}
+        i = 0
 
-        threads = [
-            threading.Thread(
-                target=self.task,
-                args=[username, self.json_data["workers"][username]["password"]]
-            )
-            for username in self.json_data["workers"].keys()
-        ]
-
-        for thread in threads:
-            thread.daemon = True
-            thread.start()
-            # exit(1)
-            time.sleep(self.delay_between_launches)
-        
         try:
-            run = True
-            while run:
-                for _ in range(100):
-                    time.sleep(1)
-                    # Update board image every seconds
-                    logger.debug("Allowing board image update")
-                    self.board_outdated.set()
-                    # Check if any threads are alive
-                    if not any(thread.is_alive() for thread in threads):
-                        logger.warning("All threads died, exiting...")
-                        run = False
-                        break
-                # Update template image and canvas offsets every 5 minutes
-                logger.debug("Allowing template image and canvas offsets update")
-                self.template_outdated.set()
+            while True:
+                i += 1
+
+                # Check config for more workers
+                self.json_data = utils.get_json_data(self, self.config_path)
+                for username in self.json_data["workers"].keys():
+                    if username in threads:
+                        continue
+                    logger.debug("Adding new worker {}", username)
+                    threads[username] = threading.Thread(
+                        target=self.task,
+                        args=[username, self.json_data["workers"][username]["password"]]
+                    )
+                    threads[username].daemon = True
+                    threads[username].start()
+
+                # Reduce CPU usage
+                time.sleep(self.delay_between_launches)
+
+                # Update board image every seconds
+                logger.debug("Allowing board image update")
+                self.board_outdated.set()
+
+                # Check if any threads are alive
+                if not any(thread.is_alive() for thread in threads.values()):
+                    logger.warning("All threads died")
+                    break
+
+                # Update template image and canvas offsets every 3-4 minutes
+                if i % 100 == 0:
+                    logger.debug("Allowing template image and canvas offsets update")
+                    self.template_outdated.set()
         # Check for ctrl+c
         except KeyboardInterrupt:
             logger.warning("KeyboardInterrupt received, killing threads...")
