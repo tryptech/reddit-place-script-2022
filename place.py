@@ -1,7 +1,7 @@
-import numpy as np
+import math
+import random
 import time
 import threading
-import random
 from loguru import logger
 
 from src.mappings import ColorMapper
@@ -16,8 +16,7 @@ class PlaceClient:
         logger.add('logs/{time}.log', rotation='1 day')
 
         # Data
-        self.config_path = config_path
-        self.json_data = utils.get_json_data(self, self.config_path)
+        self.json_data = utils.get_json_data(self, config_path)
         
         self.template_urls = (
             self.json_data["template_urls"]
@@ -56,7 +55,7 @@ class PlaceClient:
         proxy.Init(self)
 
         # Color palette
-        self.rgb_colors_array: np.ndarray = ColorMapper.generate_rgb_colors_array()
+        self.rgb_colors_array = ColorMapper.generate_rgb_colors_array()
 
         # Auth
         self.access_tokens = {}
@@ -75,13 +74,16 @@ class PlaceClient:
         coord, template = data
 
         # Template information
-        self.coord = coord + np.array(self.canvas['offset']['template_api'])
-        self.size = np.array(template.size)
-        self.template = np.array(template)
+        self.coord = (
+            coord[0] + self.canvas['offset']['template_api'][0],
+            coord[1] + self.canvas['offset']['template_api'][1]
+        )
+        self.size = template.size
+        self.template = template.load()
 
         # Board information
-        self.board: np.ndarray = None
-        self.wrong_pixels: list[np.ndarray] = []
+        self.board = None
+        self.wrong_pixels = []
 
     # Update board, templates and canvas offsets
     # Returns position, size and template image
@@ -97,20 +99,24 @@ class PlaceClient:
                     return  # skip updating
                 coord, template = data
                 self.canvas = utils.get_json_data(self, self.canvas_path)
-                self.coord = coord + np.array(self.canvas['offset']['template_api'])
-                self.size = np.array(template.size)
-                self.template = np.array(template)
+                self.coord = (
+                    coord[0] + self.canvas['offset']['template_api'][0],
+                    coord[1] + self.canvas['offset']['template_api'][1]
+                )
+                self.size = template.size
+                self.template = template.load()
                 logger.info("Thread {}: Template image and canvas offsets updated", username)
             
             # Update board image if outdated
             if self.board_outdated.is_set() or self.board is None:
                 self.board_outdated.clear()
                 logger.debug("Thread {}: Updating board image", username)
-                self.board = np.array(
+                self.board = (
                     connect
                     .get_board(self, self.access_tokens[username])
                     .crop((*self.coord, self.coord[0] + self.size[0], self.coord[1] + self.size[1]))
                     .convert("RGB")
+                    .load()
                 )
                 self.wrong_pixels = []
                 logger.info("Thread {}: Board image updated", username)
@@ -132,7 +138,7 @@ class PlaceClient:
                         coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {}",
-                        username, coord + self.coord + np.array(self.canvas['offset']['visual'])
+                        username, coord
                     )
                     return coord, new_rgb
             
@@ -147,35 +153,36 @@ class PlaceClient:
             logger.debug("Thread {}: Board is still up-to-date", username)
             return
         logger.debug("Thread {}: Board has been updated", username)
-        target_a = self.template[...,-1]  # alpha channel
-        target_rgb = ColorMapper.closest_color(
-            self.template[...,:-1], self.rgb_colors_array
-        )  # rgb channels converted to nearest colorpalette color
-        coords = np.argwhere(
-            (self.board != target_rgb).any(axis=-1) & (target_a == 255)
-        )
-        # get rgb values of wrong pixels
-        target_rgb = target_rgb[coords[:,0], coords[:,1]]
-        self.wrong_pixels = list(zip(coords, target_rgb))
+        for x in range(self.size[0]):
+            for y in range(self.size[1]):
+                target_rgba = self.template[x, y]
+                if target_rgba[-1] == 0:
+                    continue  # skip transparent pixels
+                new_rgb = ColorMapper.closest_color(
+                    target_rgba, self.rgb_colors_array
+                )
+                if self.board[x, y] == new_rgb:
+                    continue  # skip correct pixels
+                self.wrong_pixels.append(((x, y), new_rgb))
 
-    def get_visual_position(self, coord):
-        return coord + np.array(self.canvas['offset']['visual'])
+    def get_visual_position(self, coord, subcanvas):
+        raw_x = coord[0] + self.canvas['offset']['visual'][0]
+        raw_y = coord[1] + self.canvas['offset']['visual'][1]
+        return raw_x, raw_y
 
     def set_pixel_and_check_ratelimit(self, color_index, coord, username):
         # canvas structure:
         # 0 | 1 | 2
         # 3 | 4 | 5
-        subcoord = coord // 1000
-        subcanvas = subcoord[0] + 3 * subcoord[1]
+        subcanvas = coord[0] // 1000 + 3 * (coord[1] // 1000)
 
         logger.warning(
             "Thread {}: Attempting to place {} pixel at {}",
             username, ColorMapper.color_id_to_name(color_index),
-            self.get_visual_position(coord)
+            self.get_visual_position(coord, subcanvas)
         )
 
-        response = connect.set_pixel(self, coord % 1000, color_index,
-                                     subcanvas, self.access_tokens[username])
+        response = connect.set_pixel(self, coord, color_index, subcanvas, self.access_tokens[username])
         logger.debug("Thread {}: Received response: {}", username, response.text)
 
         # Successfully placed
@@ -218,7 +225,7 @@ class PlaceClient:
         # Refresh auth tokens and / or draw a pixel
         while not self.stop_event.wait(time_to_wait):
             # get the current time
-            current_time = time.time()
+            current_time = math.floor(time.time())
 
             # Refresh access token if necessary
             if (username not in self.access_tokens
@@ -237,7 +244,7 @@ class PlaceClient:
             logger.info("Thread {} :: PLACING ::", username)
             next_placement_time = self.set_pixel_and_check_ratelimit(
                 ColorMapper.COLOR_MAP[ColorMapper.rgb_to_hex(new_rgb)],
-                self.coord + relative, username,
+                (self.coord[0] + relative[0], self.coord[1] + relative[1]), username,
             )
 
             # log next time until drawing
@@ -252,42 +259,38 @@ class PlaceClient:
 
     def start(self):
         self.stop_event.clear()
-        threads = {}
-        i = 0
 
+        threads = [
+            threading.Thread(
+                target=self.task,
+                args=[username, self.json_data["workers"][username]["password"]]
+            )
+            for username in self.json_data["workers"].keys()
+        ]
+
+        for thread in threads:
+            thread.daemon = True
+            thread.start()
+            # exit(1)
+            time.sleep(self.delay_between_launches)
+        
         try:
-            while True:
-                i += 1
-
-                # Check config for more workers
-                self.json_data = utils.get_json_data(self, self.config_path)
-                for username in self.json_data["workers"].keys():
-                    if username in threads:
-                        continue
-                    logger.debug("Adding new worker {}", username)
-                    threads[username] = threading.Thread(
-                        target=self.task,
-                        args=[username, self.json_data["workers"][username]["password"]]
-                    )
-                    threads[username].daemon = True
-                    threads[username].start()
-
-                # Reduce CPU usage
-                time.sleep(self.delay_between_launches)
-
-                # Update board image every seconds
-                logger.debug("Allowing board image update")
-                self.board_outdated.set()
-
-                # Check if any threads are alive
-                if not any(thread.is_alive() for thread in threads.values()):
-                    logger.warning("All threads died")
-                    break
-
-                # Update template image and canvas offsets every 3-4 minutes
-                if i % 100 == 0:
-                    logger.debug("Allowing template image and canvas offsets update")
-                    self.template_outdated.set()
+            run = True
+            while run:
+                for _ in range(100):
+                    time.sleep(1)
+                    # Update board image every seconds
+                    logger.debug("Allowing board image update")
+                    self.board_outdated.set()
+                    # Check if any threads are alive
+                    if not any(thread.is_alive() for thread in threads):
+                        logger.warning("All threads died, exiting...")
+                        run = False
+                        break
+                # Update template image and canvas offsets every 5 minutes
+                utils.clear()
+                logger.debug("Allowing template image and canvas offsets update")
+                self.template_outdated.set()
         # Check for ctrl+c
         except KeyboardInterrupt:
             logger.warning("KeyboardInterrupt received, killing threads...")
