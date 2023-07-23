@@ -23,7 +23,7 @@ class ColorMapper:
         "#6A5CFF": 16,  # periwinkle
         #"#94B3FF": 17,  # lavender
         "#811E9F": 18,  # dark purple
-        #"#B44AC0": 19,  # purple
+        "#B44AC0": 19,  # purple
         #"#E4ABFF": 20,  # pale purple
         #"#DE107F": 21,  # magenta
         "#FF3881": 22,  # pink
