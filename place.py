@@ -202,6 +202,7 @@ class PlaceClient:
             else: 
                 logger.error("Thread {}: POTENTIALLY SHADOW BANNED", username)
                 logger.error("Thread {}: Pixel placed by {}", username or "no one" , who_placed)
+                return -1
             return next_time
         
         logger.debug(response.json().get("errors"))
@@ -256,6 +257,9 @@ class PlaceClient:
                 ColorMapper.COLOR_MAP[ColorMapper.rgb_to_hex(new_rgb)],
                 (self.coord[0] + relative[0], self.coord[1] + relative[1]), username,
             )
+
+            if next_placement_time == -1 :
+                break
 
             # log next time until drawing
             time_to_wait = next_placement_time - current_time
