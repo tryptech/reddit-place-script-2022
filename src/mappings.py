@@ -1,22 +1,38 @@
-import numpy as np
+import math
 from PIL import ImageColor
 
 
 class ColorMapper:
     COLOR_MAP = {
+        #"#6D001A": 0,  # darkest red
+        "#BE0039": 1,  # dark red
         "#FF4500": 2,  # red
         "#FFA800": 3,  # orange
         "#FFD635": 4,  # yellow
+        #"#FFF8B8": 5,  # pale yellow
         "#00A368": 6,  # dark green
+        "#00CC78": 7,  # green
         "#7EED56": 8,  # light green
+        "#00756F": 9,  # dark teal
+        "#009EAA": 10,  # teal
+        #"#00CCC0": 11,  # light teal
         "#2450A4": 12,  # dark blue
         "#3690EA": 13,  # blue
         "#51E9F4": 14,  # light blue
+        "#493AC1": 15,  # indigo
+        "#6A5CFF": 16,  # periwinkle
+        #"#94B3FF": 17,  # lavender
         "#811E9F": 18,  # dark purple
-        "#B44AC0": 19,  # purple
+        #"#B44AC0": 19,  # purple
+        #"#E4ABFF": 20,  # pale purple
+        #"#DE107F": 21,  # magenta
+        "#FF3881": 22,  # pink
         "#FF99AA": 23,  # light pink
+        "#6D482F": 24,  # dark brown
         "#9C6926": 25,  # brown
+        #"#FFB470": 26,  # beige
         "#000000": 27,  # black
+        #"#515252": 28,  # dark gray
         "#898D90": 29,  # gray
         "#D4D7D9": 30,  # light gray
         "#FFFFFF": 31,  # white
@@ -59,9 +75,9 @@ class ColorMapper:
     }
 
     @staticmethod
-    def rgb_to_hex(rgb):
+    def rgb_to_hex(rgb: tuple):
         """Convert rgb tuple to hexadecimal string."""
-        return ("#%02x%02x%02x" % (*rgb,)).upper()
+        return ("#%02x%02x%02x" % rgb).upper()
 
     @staticmethod
     def color_id_to_name(color_id: int):
@@ -71,31 +87,36 @@ class ColorMapper:
         return "Invalid Color ({})".format(str(color_id))
 
     @staticmethod
-    def closest_color(target_rgb: np.ndarray, rgb_colors_array: np.ndarray) -> np.ndarray:
-        new_rgb = np.empty_like(target_rgb)
-        for y, row in enumerate(target_rgb):
-            for x, color in enumerate(row):
-                # redmean approximation for sRGB colors
-                mean = (color[0] + rgb_colors_array[:, 0]) / (2 * 256)
+    def closest_color(
+        target_rgb: tuple, rgb_colors_array: list
+    ):
+        """Find the closest rgb color from palette to a target rgb color"""
 
-                # Calculate delta
-                delta2 = (color - rgb_colors_array) ** 2
+        r, g, b = target_rgb[:3]
+        color_diffs = []
+        for color in rgb_colors_array:
+            cr, cg, cb = color
+            # Old method is to just take the linear distance from color to the palette options
+            # This is bad when the template does not have accurate colors as it does not model
+            # human perception and color contributions to brightness
+            # https://en.wikipedia.org/wiki/Color_difference
+            # color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
 
-                # Calculate the color difference
-                color_diff = np.sqrt(
-                    delta2[:, 0] * (2 + mean)
-                    + delta2[:, 1] * 4
-                    + delta2[:, 2] * (3 - mean)
-                )
-
-                new_rgb[y, x] = rgb_colors_array[np.argmin(color_diff)]
-        return new_rgb
-
+            # For now, using a redmean approximation for sRGB colors
+            # Should be the same in cases of accurate color reference
+            # Otherwise provides 
+            rmean = (r + cr)/2
+            rdelta = r - cr
+            gdelta = g - cg
+            bdelta = b - cb
+            color_diff = math.sqrt(((2 + rmean/256) * rdelta ** 2) + (4 * gdelta ** 2) + ((2 + (255-rmean)/256) * bdelta ** 2))
+            color_diffs.append((color_diff, color))
+        return min(color_diffs)[1]
 
     @staticmethod
-    def generate_rgb_colors_array() -> np.ndarray:
+    def generate_rgb_colors_array():
         """Generate array of available rgb colors to be used"""
-        return np.array([
+        return [
             ImageColor.getcolor(color_hex, "RGB")
             for color_hex in list(ColorMapper.COLOR_MAP.keys())
-        ])
+        ]

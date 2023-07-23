@@ -1,4 +1,3 @@
-import numpy as np
 import json
 import os
 import requests
@@ -60,7 +59,7 @@ def load_image_from_url(self, url):
     return image
 
 
-def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
+def load_template_data(self):
     # Load the template images from the urls
     templates = []
     for url in self.template_urls:
@@ -80,8 +79,8 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
         self.logger.warning("Failed to load priority templates")
 
     # use priority unless nothing matches, then use names
-    names = priority_names & original_names
-    if not names:
+    names = priority_names
+    if not (priority_names & original_names):
         self.logger.warning("No priority templates found in template urls")
         names = set(
             self.json_data["names"]
@@ -91,9 +90,7 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
         )
 
     # use names unless nothing matches, then use all templates
-    names = names & original_names
-    self.logger.debug("Using templates: {}", names)
-    if names:
+    if names & original_names:
         templates = list(filter(lambda template: template['name'] in names, templates))
     else:
         self.logger.warning("No template matches names")
@@ -111,24 +108,21 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
         return None
 
     # Compute dimensions
-    coords = np.array([(template['x'], template['y'])
-                       for template in templates])
-    sizes = np.array([image.size for image in images])
-    dims = coords + sizes
+    xs = [template['x'] for template in templates]
+    ys = [template['y'] for template in templates]
+    sizes = [image.size for image in images]
+    ws = [s[0] + x for s, x in zip(sizes, xs)]
+    hs = [s[1] + y for s, y in zip(sizes, ys)]
+    size = (max(ws), max(hs))
+
     # Starting position
-    coord = np.min(coords, axis=0)
-    dim = np.max(dims, axis=0)
+    coord = (min(xs), min(ys))
 
     # Combine all images
-    image = Image.new('RGBA', (*dim,))  # canvas in RGBA
-    for i, c in zip(images[::-1], coords[::-1]):
-        image.paste(i, (*c,), i)
-    self.logger.debug("coords: {}", coords)
-    self.logger.debug("sizes: {}", sizes)
-    self.logger.debug("dims: {}", dims)
-    self.logger.debug("coord: {}", coord)
-    self.logger.debug("dim: {}", dim)
-    image = image.crop((*coord, *dim))
+    image = Image.new('RGBA', size)  # canvas in RGBA
+    for i, x, y in zip(images[::-1], xs[::-1], ys[::-1]):
+        image.paste(i, (x, y), i)
+    image = image.crop((*coord, *size))
 
     self.logger.info("Loaded image size: {}", image.size)
 
@@ -136,5 +130,4 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
     image.save(self.image_path)
     self.logger.info("Saved template image to {}", self.image_path)
 
-    # TEMPLATE API COORDS
     return coord, image
