@@ -381,7 +381,11 @@ def check(self, coord, color_index, canvas_index, user):
         proxies=proxy.get_random_proxy(self, username=None),
     )
 
-    pixel_user = response.json()['data']['act']['data'][0]['data']['userInfo']['username']
+    try: 
+        pixel_user = response.json()['data']['act']['data'][0]['data']['userInfo']['username']
 
-    logger.debug('Thread {}: Pixel placed by {}', user, pixel_user)
+        logger.debug('Thread {}: Pixel placed by {}', user, pixel_user)
+    except Exception as e:
+        logger.debug('Thread {}: Pixel placed by no one', user)
+        return None
     return pixel_user

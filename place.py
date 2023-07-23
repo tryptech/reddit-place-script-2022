@@ -201,7 +201,7 @@ class PlaceClient:
                 logger.success("Thread {}: Succeeded placing pixel", username)
             else: 
                 logger.error("Thread {}: POTENTIALLY SHADOW BANNED", username)
-                logger.error("Thread {}: Pixel placed by {}", username, who_placed)
+                logger.error("Thread {}: Pixel placed by {}", username or "no one" , who_placed)
             return next_time
         
         logger.debug(response.json().get("errors"))
