@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import threading
+import random
 from loguru import logger
 
 from src.mappings import ColorMapper
@@ -124,7 +125,10 @@ class PlaceClient:
                 self.compute_wrong_pixels(username)
                 # Pop the first unset pixel
                 if len(self.wrong_pixels) > 0:
-                    coord, new_rgb = self.wrong_pixels.pop()
+                    if len(self.wrong_pixels) > 1:
+                        coord, new_rgb = self.wrong_pixels.pop(random.randint(0,len(self.wrong_pixels)-1))
+                    else:
+                        coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {}",
                         username, coord + self.coord + np.array(self.canvas['offset']['visual'])
