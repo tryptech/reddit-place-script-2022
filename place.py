@@ -196,7 +196,7 @@ class PlaceClient:
 
             #Check if pixel was placed, potential shadowban
             who_placed = connect.check(self, coord, color_index, subcanvas, username) 
-            if who_placed is username:
+            if who_placed == username:
             
                 logger.success("Thread {}: Succeeded placing pixel", username)
             else: 
