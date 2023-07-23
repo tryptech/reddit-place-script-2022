@@ -1,0 +1,14 @@
+# Ignore everything
+*
+
+# Allowed files and folder
+!src/
+!*.json
+!**/*.py
+!proxies.txt
+!**/*.sh
+!requirements.txt
+
+# Ignore unecessary content
+**/__pycache__/
+Dockerfile
