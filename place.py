@@ -105,6 +105,7 @@ class PlaceClient:
                 )
                 self.size = template.size
                 self.template = template.load()
+                utils.clear()
                 logger.info("Thread {}: Template image and canvas offsets updated", username)
             
             # Update board image if outdated
@@ -137,7 +138,7 @@ class PlaceClient:
                     else:
                         coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
-                        "Thread {}: Found unset pixel at {}",
+                        "Thread {}: Found unset pixel at {} of template",
                         username, coord
                     )
                     return coord, new_rgb
@@ -187,11 +188,20 @@ class PlaceClient:
 
         # Successfully placed
         if response.json()["data"] is not None:
+            
             next_time = (
                 response.json()["data"]["act"]["data"][0]
                 ["data"]["nextAvailablePixelTimestamp"]
             ) / 1000
-            logger.success("Thread {}: Succeeded placing pixel", username)
+
+            #Check if pixel was placed, potential shadowban
+            who_placed = connect.check(self, coord, color_index, subcanvas, username) 
+            if who_placed is username:
+            
+                logger.success("Thread {}: Succeeded placing pixel", username)
+            else: 
+                logger.error("Thread {}: POTENTIALLY SHADOW BANNED", username)
+                logger.error("Thread {}: Pixel placed by {}", username, who_placed)
             return next_time
         
         logger.debug(response.json().get("errors"))
@@ -255,7 +265,7 @@ class PlaceClient:
                 return
 
             # wait until next rate limit expires
-            logger.debug("Thread {}: Until next placement, {}s", username, time_to_wait)
+            logger.info("Thread {}: Until next placement, {}s", username, time_to_wait)
 
     def start(self):
         self.stop_event.clear()
@@ -288,7 +298,6 @@ class PlaceClient:
                         run = False
                         break
                 # Update template image and canvas offsets every 5 minutes
-                utils.clear()
                 logger.debug("Allowing template image and canvas offsets update")
                 self.template_outdated.set()
         # Check for ctrl+c
