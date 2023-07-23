@@ -373,6 +373,7 @@ def check(self, coord, color_index, canvas_index, user):
         "Content-Type": "application/json",
     }
 
+    time.sleep(3)
     response = requests.request(
         "POST",
         url,
@@ -382,7 +383,6 @@ def check(self, coord, color_index, canvas_index, user):
     )
 
     try: 
-        time.sleep(3)
         pixel_user = response.json()['data']['act']['data'][0]['data']['userInfo']['username']
 
         logger.debug('Thread {}: Pixel placed by {}', user, pixel_user)
