@@ -1,4 +1,5 @@
 import math
+import random
 import time
 import threading
 from loguru import logger
@@ -131,7 +132,10 @@ class PlaceClient:
                 self.compute_wrong_pixels(username)
                 # Pop the first unset pixel
                 if len(self.wrong_pixels) > 0:
-                    coord, new_rgb = self.wrong_pixels.pop()
+                    if len(self.wrong_pixels) > 1:
+                        coord, new_rgb = self.wrong_pixels.pop(random.randint(0,len(self.wrong_pixels)-1))
+                    else:
+                        coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {}",
                         username, coord
@@ -284,6 +288,7 @@ class PlaceClient:
                         run = False
                         break
                 # Update template image and canvas offsets every 5 minutes
+                utils.clear()
                 logger.debug("Allowing template image and canvas offsets update")
                 self.template_outdated.set()
         # Check for ctrl+c
