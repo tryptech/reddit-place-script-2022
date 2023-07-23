@@ -16,12 +16,6 @@ def Init(self):
         os.path.join(os.getcwd(), "proxies.txt")
     ):
         self.proxies = get_proxies_text(self)
-    self.compactlogging = (
-        self.json_data["compact_logging"]
-        if "compact_logging" in self.json_data
-        and self.json_data["compact_logging"] is not None
-        else True
-    )
     self.using_tor = (
         self.json_data["using_tor"]
         if "using_tor" in self.json_data and self.json_data["using_tor"] is not None

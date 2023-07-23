@@ -1,4 +1,4 @@
-import math
+import numpy as np
 from PIL import ImageColor
 
 
@@ -59,7 +59,7 @@ class ColorMapper:
     }
 
     @staticmethod
-    def rgb_to_hex(rgb: tuple):
+    def rgb_to_hex(rgb):
         """Convert rgb tuple to hexadecimal string."""
         return ("#%02x%02x%02x" % rgb).upper()
 
@@ -71,36 +71,24 @@ class ColorMapper:
         return "Invalid Color ({})".format(str(color_id))
 
     @staticmethod
-    def closest_color(
-        target_rgb: tuple, rgb_colors_array: list
-    ):
-        """Find the closest rgb color from palette to a target rgb color"""
+    def closest_color(target_rgb: np.ndarray, rgb_colors_array: np.ndarray) -> np.ndarray:
+        # redmean approximation for sRGB colors
+        mean = (target_rgb[0] + rgb_colors_array[:, 0]) / 2
 
-        r, g, b = target_rgb[:3]
-        color_diffs = []
-        for color in rgb_colors_array:
-            cr, cg, cb = color
-            # Old method is to just take the linear distance from color to the palette options
-            # This is bad when the template does not have accurate colors as it does not model
-            # human perception and color contributions to brightness
-            # https://en.wikipedia.org/wiki/Color_difference
-            # color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
+        # Calculate delta for all colors at once
+        delta = target_rgb - rgb_colors_array
 
-            # For now, using a redmean approximation for sRGB colors
-            # Should be the same in cases of accurate color reference
-            # Otherwise provides 
-            rmean = (r + cr)/2
-            rdelta = r - cr
-            gdelta = g - cg
-            bdelta = b - cb
-            color_diff = math.sqrt(((2 + rmean/256) * rdelta ** 2) + (4 * gdelta ** 2) + ((2 + (255-rmean)/256) * bdelta ** 2))
-            color_diffs.append((color_diff, color))
-        return min(color_diffs)[1]
+        # Calculate the color difference using vectorized operations
+        color_diff = np.sqrt(np.sum(np.array([2 + mean/256, 4, 2 + (255-mean)/256]) * delta ** 2, axis=1))
+
+        # Find the index of the minimum color difference and return the corresponding color
+        return rgb_colors_array[np.argmin(color_diff)]
+
 
     @staticmethod
-    def generate_rgb_colors_array():
+    def generate_rgb_colors_array() -> np.ndarray:
         """Generate array of available rgb colors to be used"""
-        return [
+        return np.array([
             ImageColor.getcolor(color_hex, "RGB")
             for color_hex in list(ColorMapper.COLOR_MAP.keys())
-        ]
+        ])
