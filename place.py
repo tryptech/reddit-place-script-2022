@@ -258,11 +258,8 @@ class PlaceClient:
                 (self.coord[0] + relative[0], self.coord[1] + relative[1]), username,
             )
 
-            if next_placement_time == -1 :
-                break
-
-            # log next time until drawing
-            time_to_wait = next_placement_time - current_time
+            # next time until drawing with random offset to try dodging shadow bans
+            time_to_wait = next_placement_time - current_time + random.randint(30,180)
 
             if time_to_wait > 10000:
                 logger.warning("Thread {} :: CANCELLED :: Rate-Limit Banned", username)
