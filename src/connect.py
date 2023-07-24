@@ -308,17 +308,27 @@ def login(self, username, password, index, current_time):
     else:
         logger.success("{} - Authorization successful!", username)
     logger.debug("Obtaining access token...")
-    r = client.get(
-        "https://new.reddit.com/",
-        proxies=proxy.get_random_proxy(self, username),
-    )
-    data_str = (
-        BeautifulSoup(r.content, features="html.parser")
-        .find("script", {"id": "data"})
-        .contents[0][len("window.__r = ") : -1]
-    )
-    data = json.loads(data_str)
-    response_data = data["user"]["session"]
+    for _ in range(5):
+        try:
+            r = client.get(
+                "https://new.reddit.com/",
+                proxies=proxy.get_random_proxy(self, username),
+            )
+            data_str = (
+                BeautifulSoup(r.content, features="html.parser")
+                .find("script", {"id": "data"})
+                .contents[0][len("window.__r = ") : -1]
+            )
+            data = json.loads(data_str)
+            response_data = data["user"]["session"]
+            break
+        except AttributeError as e:
+            logger.error("Failed to obtain access token: {}", e)
+            logger.debug("response: {} - {}", r.status_code, r.text)
+            response_data = []
+            # wait 30 seconds before trying again
+            if self.stop_event.wait(30):
+                break
 
     if "error" in response_data:
         logger.error(

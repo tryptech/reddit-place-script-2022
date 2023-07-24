@@ -1,4 +1,4 @@
-import math
+import numpy as np
 from PIL import ImageColor
 
 
@@ -23,7 +23,7 @@ class ColorMapper:
         "#6A5CFF": 16,  # periwinkle
         #"#94B3FF": 17,  # lavender
         "#811E9F": 18,  # dark purple
-        #"#B44AC0": 19,  # purple
+        "#B44AC0": 19,  # purple
         #"#E4ABFF": 20,  # pale purple
         #"#DE107F": 21,  # magenta
         "#FF3881": 22,  # pink
@@ -88,35 +88,48 @@ class ColorMapper:
 
     @staticmethod
     def closest_color(
-        target_rgb: tuple, rgb_colors_array: list
-    ):
+        target_rgb: np.ndarray, rgb_colors_array: np.ndarray
+    ) -> np.ndarray:
         """Find the closest rgb color from palette to a target rgb color"""
+        
+        # Old method is to just take the linear distance from color to the palette options
+        # This is bad when the template does not have accurate colors as it does not model
+        # human perception and color contributions to brightness
+        # https://en.wikipedia.org/wiki/Color_difference
+        # color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
 
-        r, g, b = target_rgb[:3]
-        color_diffs = []
-        for color in rgb_colors_array:
-            cr, cg, cb = color
-            # Old method is to just take the linear distance from color to the palette options
-            # This is bad when the template does not have accurate colors as it does not model
-            # human perception and color contributions to brightness
-            # https://en.wikipedia.org/wiki/Color_difference
-            # color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
-
-            # For now, using a redmean approximation for sRGB colors
-            # Should be the same in cases of accurate color reference
-            # Otherwise provides 
-            rmean = (r + cr)/2
-            rdelta = r - cr
-            gdelta = g - cg
-            bdelta = b - cb
-            color_diff = math.sqrt(((2 + rmean/256) * rdelta ** 2) + (4 * gdelta ** 2) + ((2 + (255-rmean)/256) * bdelta ** 2))
-            color_diffs.append((color_diff, color))
-        return min(color_diffs)[1]
+        # For now, using a redmean approximation for sRGB colors
+        # Should be the same in cases of accurate color reference
+        # Otherwise provides 
+        
+        # Image dimension mxnx3
+        # Palette dimension px3
+        
+        # mean_r: mean of red channel with each palette color
+        # (m x n x 1) + (1 x p) -> (m x n x p)
+        mean_r = (target_rgb[...,[0]] + rgb_colors_array[np.newaxis,:,0]) / 2
+        # delta_rgb: difference between each pixel and each palette color
+        # (m x n x 1 x 3) - (p x 3) -> (m x n x p x 3)
+        delta_rgb = target_rgb[...,np.newaxis,:] - rgb_colors_array
+        # weights: [2 + r_mean/256, 4, 2 + (255 - r_mean)/256]
+        # (3 x m x n x p)
+        weights = np.stack([
+            2 + mean_r/256,
+            np.full_like(mean_r, 4),
+            2 + (255 - mean_r)/256
+        ])
+        # delta_c: weighted distance between each pixel and each palette color
+        # (3 x m x n x p) * (m x n x p x 3) -> (m x n x p)
+        delta_c = np.einsum('cmnp,mnpc->mnp', weights, delta_rgb)
+        # new_rgb_id: palette color id with minimum distance to the corresponding pixel
+        # (m x n x p) -> (m x n)
+        new_rgb_id = np.argmin(delta_c, axis=-1)
+        return rgb_colors_array[new_rgb_id]
 
     @staticmethod
-    def generate_rgb_colors_array():
+    def generate_rgb_colors_array() -> np.ndarray:
         """Generate array of available rgb colors to be used"""
-        return [
+        return np.array([
             ImageColor.getcolor(color_hex, "RGB")
             for color_hex in list(ColorMapper.COLOR_MAP.keys())
-        ]
+        ])

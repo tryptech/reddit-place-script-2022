@@ -15,42 +15,19 @@ class PlaceClient:
         self.logger = logger
         logger.add('logs/{time}.log', rotation='1 day')
 
-        # Data
-        self.json_data = utils.get_json_data(self, config_path)
-        
-        self.template_urls = (
-            self.json_data["template_urls"]
-            if "template_urls" in self.json_data
-            and self.json_data["template_urls"] is not None
-            else []
-        )
-        self.priority_url = (
-            self.json_data["priority_url"]
-            if "priority_url" in self.json_data
-            and self.json_data["priority_url"] is not None
-            else ""
-        )
-        self.canvas_path = canvas_path
-        self.canvas = utils.get_json_data(self, self.canvas_path)
-        self.image_path = (
-            self.json_data["image_path"]
-            if "image_path" in self.json_data
-            else "image.jpg"
-        )
+        # Thread monitoring
+        self.update_lock = threading.Lock()
+        self.config_lock = threading.Lock()
+        self.print_lock = threading.Lock()
+        self.stop_event = threading.Event()
+        self.board_outdated = threading.Event()
+        self.template_outdated = threading.Event()
 
-        # In seconds
-        self.delay_between_launches = (
-            self.json_data["thread_delay"]
-            if "thread_delay" in self.json_data
-            and self.json_data["thread_delay"] is not None
-            else 3
-        )
-        self.unverified_rate_limit = (
-            self.json_data["unverified_rate_limit"]
-            if "unverified_rate_limit" in self.json_data
-            and self.json_data["unverified_rate_limit"] is not None
-            else 0
-        )
+        # Data
+        self.config_path = config_path
+        self.canvas_path = canvas_path
+        self.config = utils.get_json_data(self, self.config_path)
+        self.canvas = utils.get_json_data(self, self.canvas_path)
 
         proxy.Init(self)
 
@@ -60,12 +37,6 @@ class PlaceClient:
         # Auth
         self.access_tokens = {}
         self.access_token_expires_at_timestamp = {}
-
-        # Thread monitoring
-        self.update_lock = threading.Lock()
-        self.stop_event = threading.Event()
-        self.board_outdated = threading.Event()
-        self.template_outdated = threading.Event()
 
         # Load template
         data = utils.load_template_data(self)
@@ -82,8 +53,8 @@ class PlaceClient:
         self.template = template.load()
 
         # Board information
-        self.board = None
-        self.wrong_pixels = []
+        self.board: np.ndarray = None
+        self.wrong_pixels: list = []
 
     # Update board, templates and canvas offsets
     # Returns position, size and template image
@@ -121,6 +92,16 @@ class PlaceClient:
                 self.wrong_pixels = []
                 logger.info("Thread {}: Board image updated", username)
 
+    # Thread-safe config getter
+    def config_get(self, key, default=None):
+        with self.config_lock:
+            return self.config.get(key, default)
+    
+    # Thread-safe config updater
+    def config_update(self):
+        with self.config_lock:
+            self.config = utils.get_json_data(self, self.config_path)
+
     def get_wrong_pixel(self, username):
         # Check every 10 seconds for an unset pixel
         while not self.stop_event.wait(timeout=10):
@@ -153,34 +134,44 @@ class PlaceClient:
             logger.debug("Thread {}: Board is still up-to-date", username)
             return
         logger.debug("Thread {}: Board has been updated", username)
-        for x in range(self.size[0]):
-            for y in range(self.size[1]):
-                target_rgba = self.template[x, y]
-                if target_rgba[-1] == 0:
-                    continue  # skip transparent pixels
-                new_rgb = ColorMapper.closest_color(
-                    target_rgba, self.rgb_colors_array
-                )
-                if self.board[x, y] == new_rgb:
-                    continue  # skip correct pixels
-                self.wrong_pixels.append(((x, y), new_rgb))
+        target_a = self.template[...,-1]  # alpha channel
+        target_rgb = ColorMapper.closest_color(
+            self.template[...,:-1], self.rgb_colors_array
+        )  # rgb channels converted to nearest colorpalette color
+        coords = np.argwhere(
+            (self.board != target_rgb).any(axis=-1) & (target_a == 255)
+        )  # get coordinates of wrong pixels relative to template
+        # get rgb values of wrong pixels
+        target_rgb = target_rgb[coords[:,0], coords[:,1]]
+        self.wrong_pixels = list(zip(coords, target_rgb))
 
     def get_visual_position(self, coord, subcanvas):
         raw_x = coord[0] + self.canvas['offset']['visual'][0]
         raw_y = coord[1] + self.canvas['offset']['visual'][1]
         return raw_x, raw_y
 
-    def set_pixel_and_check_ratelimit(self, color_index, coord, username):
+    def set_pixel_and_check_ratelimit(self, color_index, coord, username,
+                                      new_rgb, target_rgb, board_rgb):
         # canvas structure:
         # 0 | 1 | 2
         # 3 | 4 | 5
         subcanvas = coord[0] // 1000 + 3 * (coord[1] // 1000)
 
-        logger.warning(
-            "Thread {}: Attempting to place {} pixel at {}",
-            username, ColorMapper.color_id_to_name(color_index),
-            self.get_visual_position(coord, subcanvas)
-        )
+        with self.print_lock:
+            logger.opt(colors=True).warning(
+                "Thread {}: Attempting to place pixel",
+                username, ColorMapper.color_id_to_name(color_index)
+            )
+            new_rgb_name = ColorMapper.color_id_to_name(color_index)
+            board_rgb_name = ColorMapper.color_id_to_name(
+                ColorMapper.rgb_to_hex(board_rgb)
+            )
+            print(f"Thread {username}",
+                  f"Pixel position: {self.get_visual_position(coord)}",
+                  f"Template color: [\033[38;2;{';'.join(map(str, target_rgb))}m▉\033[0m]",
+                  f"Expected color: [\033[38;2;{';'.join(map(str, new_rgb))}m▉\033[0m] ({new_rgb_name})",
+                  f"Board    color: [\033[38;2;{';'.join(map(str, board_rgb))}m▉\033[0m] ({board_rgb_name})",
+                  sep='\n')
 
         response = connect.set_pixel(self, coord, color_index, subcanvas, self.access_tokens[username])
         logger.debug("Thread {}: Received response: {}", username, response.text)
@@ -219,11 +210,8 @@ class PlaceClient:
 
     # Draw the input image
     def task(self, username, password):
-        # note: Reddit limits us to place 1 pixel every 5 minutes, so I am setting it to
-        # 5 minutes and 30 seconds per pixel
-        time_to_wait = self.unverified_rate_limit
         # Refresh auth tokens and / or draw a pixel
-        while not self.stop_event.wait(time_to_wait):
+        while not self.stop_event.is_set():
             # get the current time
             current_time = math.floor(time.time())
 
@@ -239,12 +227,15 @@ class PlaceClient:
 
             # get current pixel position from input image and replacement color
             relative, new_rgb = self.get_wrong_pixel(username)
+            target_rgb = self.template[relative[0], relative[1], :-1]
+            board_rgb = self.board[relative[0], relative[1], :]
 
             # draw the pixel onto r/place
             logger.info("Thread {} :: PLACING ::", username)
             next_placement_time = self.set_pixel_and_check_ratelimit(
                 ColorMapper.COLOR_MAP[ColorMapper.rgb_to_hex(new_rgb)],
-                (self.coord[0] + relative[0], self.coord[1] + relative[1]), username,
+                self.coord + relative, username,
+                new_rgb, target_rgb, board_rgb
             )
 
             # log next time until drawing
@@ -256,46 +247,57 @@ class PlaceClient:
 
             # wait until next rate limit expires
             logger.debug("Thread {}: Until next placement, {}s", username, time_to_wait)
+            # note: Reddit limits us to place 1 pixel every 5 minutes, so I am setting it to
+            # 5 minutes and 30 seconds per pixel
+            if self.stop_event.wait(self.config_get("unverified_rate_limit") or 330):
+                logger.warning("Thread {} :: CANCELLED :: Stopped by Main Thread", username)
+                return
 
     def start(self):
         self.stop_event.clear()
 
-        threads = [
-            threading.Thread(
-                target=self.task,
-                args=[username, self.json_data["workers"][username]["password"]]
-            )
-            for username in self.json_data["workers"].keys()
-        ]
-
-        for thread in threads:
-            thread.daemon = True
-            thread.start()
-            # exit(1)
-            time.sleep(self.delay_between_launches)
-        
         try:
-            run = True
-            while run:
-                for _ in range(100):
-                    time.sleep(1)
-                    # Update board image every seconds
-                    logger.debug("Allowing board image update")
-                    self.board_outdated.set()
-                    # Check if any threads are alive
-                    if not any(thread.is_alive() for thread in threads):
-                        logger.warning("All threads died, exiting...")
-                        run = False
-                        break
-                # Update template image and canvas offsets every 5 minutes
-                utils.clear()
-                logger.debug("Allowing template image and canvas offsets update")
-                self.template_outdated.set()
+            while True:
+                i += 1
+
+                # Reduce CPU usage
+                time.sleep(self.config_get("thread_delay") or 3)
+
+                # Update config
+                logger.debug("Main: Updating config")
+                self.config_update()
+                for username in self.config_get("workers").keys():
+                    if username in threads:
+                        continue
+                    logger.debug("Main: Adding new worker {}", username)
+                    threads[username] = threading.Thread(
+                        target=self.task,
+                        args=[username, self.config_get("workers")[username]["password"]]
+                    )
+                    threads[username].daemon = True
+                    threads[username].start()
+
+                    # Reduce CPU usage
+                    time.sleep(self.config_get("thread_delay") or 3)
+
+                # Update board image every seconds
+                logger.debug("Main: Allowing board image update")
+                self.board_outdated.set()
+
+                # Check if any threads are alive
+                if not any(thread.is_alive() for thread in threads.values()):
+                    logger.warning("Main: All threads died")
+                    break
+
+                # Update template image and canvas offsets every 3-4 minutes
+                if i % 100 == 0:
+                    logger.debug("Main: Allowing template image and canvas offsets update")
+                    self.template_outdated.set()
         # Check for ctrl+c
         except KeyboardInterrupt:
-            logger.warning("KeyboardInterrupt received, killing threads...")
+            logger.warning("Main: KeyboardInterrupt received, killing threads...")
             self.stop_event.set()
-            logger.warning("Threads killed, exiting...")
+            logger.warning("Main: Threads killed, exiting...")
             for thread in threads:
                 thread.join()
             exit(0)
