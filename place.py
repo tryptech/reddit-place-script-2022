@@ -124,6 +124,7 @@ class PlaceClient:
                 )
                 self.rgb_colors_array = ColorMapper.generate_rgb_colors_array(self)
                 self.wrong_pixels = []
+                self.compute_wrong_pixels(username)
                 logger.info("Thread {}: Board image updated", username)
 
     def get_wrong_pixel(self, username):
@@ -134,7 +135,6 @@ class PlaceClient:
 
             # Search for unset pixels
             with self.update_lock:
-                self.compute_wrong_pixels(username)
                 # Pop the most visually different pixel
                 if len(self.wrong_pixels) > 0:
                     coord, new_rgb, diff = self.wrong_pixels.pop()
@@ -270,7 +270,7 @@ class PlaceClient:
                 return
 
             # wait until next rate limit expires
-            logger.info("Thread {}: Until next placement, {}s", username, time_to_wait)
+            logger.info("Thread {}: Until next placement, {:.0fs}s", username, time_to_wait)
 
     def start(self):
         self.stop_event.clear()
