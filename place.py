@@ -270,7 +270,7 @@ class PlaceClient:
                 return
 
             # wait until next rate limit expires
-            logger.info("Thread {}: Until next placement, {:.0fs}s", username, time_to_wait)
+            logger.info("Thread {}: Until next placement, {:0f}s", username, time_to_wait)
 
     def start(self):
         self.stop_event.clear()
