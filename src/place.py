@@ -219,7 +219,7 @@ class PlaceClient:
             )
 
             # next time until drawing with random offset to try dodging shadow bans
-            time_to_wait = next_placement_time - current_time + np.random.randint(30, 180)
+            time_to_wait = next_placement_time - current_time + np.random.randint(0, 4) ** 4
 
             if time_to_wait > 10000:
                 logger.warning("Thread {} :: CANCELLED :: Rate-Limit Banned", username)
