@@ -351,11 +351,10 @@ def login(self, username, password, index, current_time):
     self.access_token_expires_at_timestamp[
         index
     ] = current_time + int(access_token_expires_in_seconds)
-    if not self.compactlogging:
-        logger.debug(
-            "Received new access token: {}************",
-            self.access_tokens.get(index)[:5],
-        )
+    logger.debug(
+        "Received new access token: {}************",
+        self.access_tokens.get(index)[:5],
+    )
 
 def check(self, coord, color_index, canvas_index, user):
     logger.debug('Thread {}" Self-checking if placement went through', user)
