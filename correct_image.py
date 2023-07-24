@@ -7,6 +7,9 @@ import numpy as np
 
 from src.mappings import ColorMapper
 
+if len(sys.argv) != 2:
+    print("Usage: python correct_image.py <config.json>")
+    exit(1)
 
 config = json.load(open(sys.argv[1]))
 
@@ -21,20 +24,17 @@ for template in templates:
     name = template['name']
     url = template['sources'][0]
 
-    if name != 'Anny Star':
-        continue
-
     response = requests.get(url)
     image = Image.open(BytesIO(response.content))
     image = image.convert('RGBA')
     image.save(f"images/{name}.png")
     image = np.array(image)
 
-    a_channel = image[...,-1]
-    corrected_image = ColorMapper.correct_color(image[...,:-1])
-    # corrected_image = np.concatenate([
-    #     corrected_image,
-    #     a_channel[...,np.newaxis]
-    # ], axis=-1)
+    corrected_image = np.concatenate([
+        ColorMapper.correct_image(image[...,:3]),
+        image[...,[3]]
+    ], axis=-1)
 
-    Image.fromarray(corrected_image, 'RGB').save(f"images/{name}_corrected.png")
+    print(f"Corrected {name} image with numpy")
+
+    Image.fromarray(corrected_image, 'RGBA').save(f"images/{name}_corrected_numpy.png")

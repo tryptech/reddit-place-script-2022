@@ -51,36 +51,46 @@ class PlaceClient:
 
     # Update board, templates and canvas offsets
     # Returns position, size and template image
-    def update(self, username):
-        # Threads should have exclusive access to updating data
-        with self.update_lock:
-            # Update template image and canvas offsets if outdated
-            if self.template_outdated.is_set():
-                self.template_outdated.clear()
-                logger.debug("Thread {}: Updating template image and canvas offsets", username)
-                data = utils.load_template_data(self)
-                if not data:
-                    return  # skip updating
-                coord, template = data
-                self.canvas = utils.get_json_data(self, self.canvas_path)
-                self.coord = coord + np.array(self.canvas['offset']['template_api'])
-                self.size = np.array(template.size)
-                self.template = np.array(template)
-                logger.info("Thread {}: Template image and canvas offsets updated", username)
-            
-            # Update board image if outdated
-            if self.board_outdated.is_set() or self.board is None:
-                self.board_outdated.clear()
-                logger.debug("Thread {}: Updating board image", username)
-                self.board = np.array(
-                    connect
-                    .get_board(self, self.access_tokens[username])
-                    .crop((*self.coord, self.coord[0] + self.size[0], self.coord[1] + self.size[1]))
-                    .convert("RGB")
-                )
-                self.wrong_pixels = []
-                logger.info("Thread {}: Board image updated", username)
+    def _update(self, username):
+        # Update board image if outdated
+        if self.board_outdated.is_set() or self.board is None:
+            self.board_outdated.clear()
+            logger.debug("Thread {}: Updating board image", username)
+            self.board = np.array(
+                connect
+                .get_board(self, self.access_tokens[username])
+                .crop((*self.coord, self.coord[0] + self.size[0], self.coord[1] + self.size[1]))
+                .convert("RGB")
+            )
+            # Compute wrong pixels
+            coords = np.argwhere(
+                (self.template[...,3] == 255)
+                & (self.template[...,:3] != self.board).any(axis=-1)
+            )  # get coordinates of wrong pixels relative to template
+            # get rgb values of wrong pixels
+            target_rgb = self.template[coords[:,0], coords[:,1]][:,:3]
+            self.wrong_pixels = list(zip(coords, target_rgb))
+            logger.info("Thread {}: Board image updated", username)
 
+        # Update template image and canvas offsets if outdated
+        if self.template_outdated.is_set():
+            self.template_outdated.clear()
+            logger.debug("Thread {}: Updating template image and canvas offsets", username)
+            data = utils.load_template_data(self)
+            if not data:
+                return  # skip updating
+            coord, template = data
+            self.canvas = utils.get_json_data(self, self.canvas_path)
+            self.coord = coord + np.array(self.canvas['offset']['template_api'])
+            self.size = np.array(template.size)
+            template = np.array(template)
+            self.template = np.concatenate([
+                # rgb channels converted to nearest colorpalette color
+                ColorMapper.correct_image(template[...,:3]),
+                template[...,[3]]
+            ], axis=-1)
+            logger.info("Thread {}: Template image and canvas offsets updated", username)
+        
     # Thread-safe config getter
     def config_get(self, key, default=None):
         with self.config_lock:
@@ -94,44 +104,25 @@ class PlaceClient:
     def get_wrong_pixel(self, username):
         # Check every 10 seconds for an unset pixel
         while not self.stop_event.wait(timeout=10):
-            # Update information
-            self.update(username)
-
-            # Search for unset pixels
+            # Threads should have exclusive access to updating data
             with self.update_lock:
-                self.compute_wrong_pixels(username)
+                # Update information
+                self._update(username)
+
                 # Pop the first unset pixel
                 if len(self.wrong_pixels) > 0:
-                    coord, new_rgb = self.wrong_pixels.pop()
+                    coord, rgb = self.wrong_pixels.pop()
                     logger.info(
-                        "Thread {}: Found unset pixel at {}",
+                        "Thread {}: Found unset pixel at {}",  # shows visual position
                         username, coord + self.coord + np.array(self.canvas['offset']['visual'])
                     )
-                    return coord, new_rgb
+                    return coord, rgb
             
             # All pixels correct, try again in 10 seconds
             logger.info(
                 "Thread {}: All pixels are correct, trying again in 10 seconds...",
                 username
             )
-
-    def compute_wrong_pixels(self, username):
-        if len(self.wrong_pixels) > 0:
-            logger.debug("Thread {}: Board is still up-to-date", username)
-            return
-        logger.debug("Thread {}: Board has been updated", username)
-        target_a = self.template[...,-1]  # alpha channel
-        # rgb channels converted to nearest colorpalette color
-        target_rgb = ColorMapper.correct_color(self.template[...,:-1])
-        coords = np.argwhere(
-            (self.board != target_rgb).any(axis=-1) & (target_a == 255)
-        )  # get coordinates of wrong pixels relative to template
-        # get rgb values of wrong pixels
-        target_rgb = target_rgb[coords[:,0], coords[:,1]]
-        self.wrong_pixels = list(zip(coords, target_rgb))
-
-    def get_visual_position(self, coord):
-        return coord + np.array(self.canvas['offset']['visual'])
 
     def set_pixel_and_check_ratelimit(self, color_index, coord, username,
                                       new_rgb, target_rgb, board_rgb):
@@ -150,8 +141,8 @@ class PlaceClient:
             board_rgb_name = ColorMapper.id2name(
                 ColorMapper.rgb2hex(board_rgb)
             )
-            print(f"Thread {username}",
-                  f"Pixel position: {self.get_visual_position(coord)}",
+            print(f"Thread {username}",  # shows visual position
+                  f"Pixel position: {coord + np.array(self.canvas['offset']['visual'])}",
                   f"Template color: [\033[38;2;{';'.join(map(str, target_rgb))}m▉\033[0m]",
                   f"Expected color: [\033[38;2;{';'.join(map(str, new_rgb))}m▉\033[0m] ({new_rgb_name})",
                   f"Board    color: [\033[38;2;{';'.join(map(str, board_rgb))}m▉\033[0m] ({board_rgb_name})",
@@ -185,12 +176,6 @@ class PlaceClient:
             "Thread {}: Failed placing pixel: rate limited for {:.0f}s",
             username, next_time - time.time(),
         )
-
-        # THIS COMMENTED CODE LETS YOU DEBUG THREADS FOR TESTING
-        # Works perfect with one thread.
-        # With multiple threads, every time you press Enter you move to the next one.
-        # Move the code anywhere you want, I put it here to inspect the API responses.
-
         return next_time
 
     # Draw the input image
@@ -198,7 +183,7 @@ class PlaceClient:
         # Refresh auth tokens and / or draw a pixel
         while not self.stop_event.is_set():
             # get the current time
-            current_time = math.floor(time.time())
+            current_time = time.time()
 
             # Refresh access token if necessary
             if (username not in self.access_tokens
@@ -218,7 +203,7 @@ class PlaceClient:
             # draw the pixel onto r/place
             logger.info("Thread {} :: PLACING ::", username)
             next_placement_time = self.set_pixel_and_check_ratelimit(
-                ColorMapper.HEX2IP[ColorMapper.rgb2hex(new_rgb)],
+                ColorMapper.HEX2ID[ColorMapper.rgb2hex(new_rgb)],
                 self.coord + relative, username,
                 new_rgb, target_rgb, board_rgb
             )

@@ -3,8 +3,8 @@ from PIL import ImageColor
 
 
 class ColorMapper:
-    HEX2IP = {
-        #"#6D001A": 0,  # darkest red
+    HEX2ID = {
+        # "#6D001A": 0,  # darkest red
         "#BE0039": 1,  # dark red
         "#FF4500": 2,  # red
         "#FFA800": 3,  # orange
@@ -77,7 +77,7 @@ class ColorMapper:
     # Generate array of available rgb colors to be used
     COLORS = np.array([
         ImageColor.getcolor(color_hex, "RGB")
-        for color_hex in list(HEX2IP.keys())
+        for color_hex in HEX2ID.keys()
     ])
 
     @staticmethod
@@ -93,7 +93,7 @@ class ColorMapper:
         return "Invalid Color ({})".format(str(color_id))
 
     @staticmethod
-    def correct_color(target_rgb: np.ndarray) -> np.ndarray:
+    def correct_image(target_image: np.ndarray) -> np.ndarray:
         """
         Find the closest rgb color from palette to a target rgb color
         
@@ -108,26 +108,28 @@ class ColorMapper:
         Otherwise provides
         """
         
-        # Image dimension mxnx3
-        # Palette dimension px3
+        # Image dimension (m x n x 3)
+        # Palette dimension (p x 3)
         
         # mean_r: mean of red channel with each palette color
-        # (m x n x 1) + (1 x p) -> (m x n x p)
-        mean_r = (target_rgb[...,[0]] + ColorMapper.COLORS[np.newaxis,:,0]) / 2
+        # (m x n x 1) + (1 x 1 x p) -> (m x n x p)
+        mean_r = (target_image[...,None,0]
+                  + ColorMapper.COLORS[None,None,:,0]) / 2
         # delta_rgb: difference between each pixel and each palette color
-        # (m x n x 1 x 3) - (p x 3) -> (m x n x p x 3)
-        delta_rgb = target_rgb[...,np.newaxis,:] - ColorMapper.COLORS
+        # (m x n x 1 x 3) - (1 x 1 x p x 3) -> (m x n x p x 3)
+        delta_rgb = (target_image[...,None,:]
+                     - ColorMapper.COLORS[None,None,...])
         # weights: [2 + r_mean/256, 4, 2 + (255 - r_mean)/256]
-        # (3 x m x n x p)
-        weights = np.stack([
-            2 + mean_r/256,
-            np.full_like(mean_r, 4),
-            2 + (255 - mean_r)/256
-        ])
+        # (m x n x p x 3)
+        weights = np.empty_like(delta_rgb)
+        weights[...,0] = 2 + mean_r/256
+        weights[...,1] = 4
+        weights[...,2] = 3 - mean_r/256
         # delta_c: weighted distance between each pixel and each palette color
-        # (3 x m x n x p) * (m x n x p x 3) -> (m x n x p)
-        delta_c = np.einsum('cmnp,mnpc->mnp', weights, delta_rgb ** 2)
+        # (m x n x p x 3) * (m x n x p x 3) -> (m x n x p)
+        delta_c = np.einsum('...i,...i->...', weights, delta_rgb**2)
         # new_rgb_id: palette color id with minimum distance to the corresponding pixel
         # (m x n x p) -> (m x n)
-        new_rgb_id = np.argmin(delta_c, axis=-1)
-        return ColorMapper.COLORS[new_rgb_id]
+        corrected_color_ids = np.argmin(delta_c, axis=-1)
+        corrected_image = ColorMapper.COLORS[corrected_color_ids]
+        return corrected_image.astype(np.uint8)
