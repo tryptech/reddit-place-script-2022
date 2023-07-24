@@ -1,3 +1,4 @@
+import numpy as np
 import json
 import os
 import requests
@@ -13,7 +14,7 @@ def get_json_data(self, config_path):
     configFilePath = os.path.join(os.getcwd(), config_path)
 
     if not os.path.exists(configFilePath):
-        exit("No config.json file found. Read the README")
+        exit(f"No {configFilePath} file found. Read the README")
 
     # To not keep file open whole execution time
     f = open(configFilePath)
@@ -59,10 +60,11 @@ def load_image_from_url(self, url):
     return image
 
 
-def load_template_data(self):
+def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
     # Load the template images from the urls
     templates = []
-    for url in self.template_urls:
+    urls = self.config_get('template_urls')
+    for url in urls:
         sources = get_json_from_url(self, url)
         if not sources:
             continue  # skip
@@ -72,25 +74,23 @@ def load_template_data(self):
 
     priority_names = set()
     try:
-        if self.priority_url:
-            for priority_template in get_json_from_url(self, self.priority_url)['templates']:
+        url = self.config_get('priority_url')
+        if url:
+            for priority_template in get_json_from_url(self, url)['templates']:
                 priority_names.add(priority_template['name'])
     except requests.exceptions.HTTPError:
         self.logger.warning("Failed to load priority templates")
 
     # use priority unless nothing matches, then use names
-    names = priority_names
-    if not (priority_names & original_names):
+    names = priority_names & original_names
+    if not names:
         self.logger.warning("No priority templates found in template urls")
-        names = set(
-            self.json_data["names"]
-            if "names" in self.json_data
-            and self.json_data["names"]
-            else []
-        )
+        names = set(self.config_get("names", []))
 
     # use names unless nothing matches, then use all templates
-    if names & original_names:
+    names = names & original_names
+    self.logger.debug("Using templates: {}", names)
+    if names:
         templates = list(filter(lambda template: template['name'] in names, templates))
     else:
         self.logger.warning("No template matches names")
@@ -108,26 +108,26 @@ def load_template_data(self):
         return None
 
     # Compute dimensions
-    xs = [template['x'] for template in templates]
-    ys = [template['y'] for template in templates]
-    sizes = [image.size for image in images]
-    ws = [s[0] + x for s, x in zip(sizes, xs)]
-    hs = [s[1] + y for s, y in zip(sizes, ys)]
-    size = (max(ws), max(hs))
-
+    coords = np.array([(template['x'], template['y'])
+                       for template in templates])
+    sizes = np.array([image.size for image in images])
+    dims = coords + sizes
     # Starting position
-    coord = (min(xs), min(ys))
+    coord = np.min(coords, axis=0)
+    dim = np.max(dims, axis=0)
 
     # Combine all images
-    image = Image.new('RGBA', size)  # canvas in RGBA
-    for i, x, y in zip(images[::-1], xs[::-1], ys[::-1]):
-        image.paste(i, (x, y), i)
-    image = image.crop((*coord, *size))
+    image = Image.new('RGBA', (*dim,))  # canvas in RGBA
+    for i, c in zip(images[::-1], coords[::-1]):
+        image.paste(i, (*c,), i)
+    image = image.crop((*coord, *dim))
 
     self.logger.info("Loaded image size: {}", image.size)
 
     # Save the template image
-    image.save(self.image_path)
-    self.logger.info("Saved template image to {}", self.image_path)
+    path = self.config_get('image_path')
+    image.save(path)
+    self.logger.info("Saved template image to {}", path)
 
+    # TEMPLATE API COORDS
     return coord, image

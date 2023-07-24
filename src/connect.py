@@ -8,13 +8,14 @@ from websocket._exceptions import WebSocketConnectionClosedException
 import ssl
 from PIL import Image
 from loguru import logger
-
-import src.proxy as proxy
-
-from loguru import logger
 from bs4 import BeautifulSoup
 
+import src.proxy as proxy
+from src.mappings import ColorMapper
+
+
 def set_pixel(self, coord, color_index, canvas_index, access_token):
+    # ACCEPTS REDDIT API COORD
     url = "https://gql-realtime-2.reddit.com/query"
 
     payload = json.dumps(
@@ -24,9 +25,9 @@ def set_pixel(self, coord, color_index, canvas_index, access_token):
                 "input": {
                     "actionName": "r/replace:set_pixel",
                     "PixelMessageData": {
-                        "coordinate": {"x": coord[0] % 1000, "y": coord[1] % 1000},
-                        "colorIndex": color_index,
-                        "canvasIndex": canvas_index,
+                        "coordinate": {"x": int(coord[0]), "y": int(coord[1])},
+                        "colorIndex": int(color_index),
+                        "canvasIndex": int(canvas_index),
                     },
                 }
             },
@@ -145,7 +146,10 @@ def get_board(self, access_token_in):
 
         canvas_count = len(canvas_details["canvasConfigurations"])
 
-        self.colors_count = len(canvas_details["colorPalette"]["colors"])
+        # Update color map
+        colors = canvas_details["colorPalette"]["colors"]
+        ColorMapper.update_colors(len(colors))
+        self.logger.debug("Colors: {}", colors)
 
         for i in range(0, canvas_count):
             canvas_sockets.append(2 + i)
@@ -311,17 +315,27 @@ def login(self, username, password, index, current_time):
     else:
         logger.success("{} - Authorization successful!", username)
     logger.debug("Obtaining access token...")
-    r = client.get(
-        "https://new.reddit.com/",
-        proxies=proxy.get_random_proxy(self, username),
-    )
-    data_str = (
-        BeautifulSoup(r.content, features="html.parser")
-        .find("script", {"id": "data"})
-        .contents[0][len("window.__r = ") : -1]
-    )
-    data = json.loads(data_str)
-    response_data = data["user"]["session"]
+    for _ in range(5):
+        try:
+            r = client.get(
+                "https://new.reddit.com/",
+                proxies=proxy.get_random_proxy(self, username),
+            )
+            data_str = (
+                BeautifulSoup(r.content, features="html.parser")
+                .find("script", {"id": "data"})
+                .contents[0][len("window.__r = ") : -1]
+            )
+            data = json.loads(data_str)
+            response_data = data["user"]["session"]
+            break
+        except AttributeError as e:
+            logger.error("Failed to obtain access token: {}", e)
+            logger.debug("response: {} - {}", r.status_code, r.text)
+            response_data = []
+            # wait 30 seconds before trying again
+            if self.stop_event.wait(30):
+                break
 
     if "error" in response_data:
         logger.error(
@@ -341,11 +355,10 @@ def login(self, username, password, index, current_time):
     self.access_token_expires_at_timestamp[
         index
     ] = current_time + int(access_token_expires_in_seconds)
-    if not self.compactlogging:
-        logger.debug(
-            "Received new access token: {}************",
-            self.access_tokens.get(index)[:5],
-        )
+    logger.debug(
+        "Received new access token: {}************",
+        self.access_tokens.get(index)[:5],
+    )
 
 def check(self, coord, color_index, canvas_index, user):
     logger.debug('Thread {}" Self-checking if placement went through', user)
@@ -358,9 +371,9 @@ def check(self, coord, color_index, canvas_index, user):
                 "input": {
                     "actionName": "r/replace:get_tile_history",
                     "PixelMessageData": {
-                        "coordinate": {"x": coord[0] % 1000, "y": coord[1] % 1000},
-                        "colorIndex": color_index,
-                        "canvasIndex": canvas_index,
+                        "coordinate": {"x": int(coord[0]), "y": int(coord[1])},
+                        "colorIndex": int(color_index),
+                        "canvasIndex": int(canvas_index),
                     },
                 }
             },

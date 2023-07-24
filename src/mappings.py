@@ -1,4 +1,4 @@
-import math
+import numpy as np
 from PIL import ImageColor
 
 
@@ -38,42 +38,6 @@ class ColorMapper:
         "#FFFFFF": 31,  # white
     }
 
-    # map of pixel color ids to verbose name (for debugging)
-    NAME_MAP = {
-        0: "Darkest Red",
-        1: "Dark Red",
-        2: "Bright Red",
-        3: "Orange",
-        4: "Yellow",
-        5: "Pale yellow",
-        6: "Dark Green",
-        7: "Green",
-        8: "Light Green",
-        9: "Dark Teal",
-        10: "Teal",
-        11: "Light Teal",
-        12: "Dark Blue",
-        13: "Blue",
-        14: "Light Blue",
-        15: "Indigo",
-        16: "Periwinkle",
-        17: "Lavender",
-        18: "Dark Purple",
-        19: "Purple",
-        20: "pale purple",
-        21: "magenta",
-        22: "Pink",
-        23: "Light Pink",
-        24: "Dark Brown",
-        25: "Brown",
-        26: "Beige",
-        27: "Black",
-        28: "ark gray",
-        29: "Gray",
-        30: "Light Gray",
-        31: "White",
-    }
-    
     COLOR_MAP = {
         #"#6D001A": 0,  # darkest red
         "#BE0039": 1,  # dark red
@@ -110,7 +74,7 @@ class ColorMapper:
     }
 
     # map of pixel color ids to verbose name (for debugging)
-    NAME_MAP = {
+    FULL_NAME_MAP = {
         0: "Darkest Red",
         1: "Dark Red",
         2: "Bright Red",
@@ -145,54 +109,87 @@ class ColorMapper:
         31: "White",
     }
 
+    COLORS = np.array([
+        ImageColor.getcolor(color_hex, "RGB")
+        for color_hex in COLOR_MAP
+    ])
+
     @staticmethod
-    def rgb_to_hex(rgb: tuple):
+    def update_colors(colors_count: int):
+        if colors_count != ColorMapper.COLORS.shape[0]:
+            ColorMapper.COLORS = np.array([
+                ImageColor.getcolor(color_hex, "RGB")
+                for color_hex in (
+                    ColorMapper.COLOR_MAP
+                    if colors_count < 32
+                    else ColorMapper.FULL_COLOR_MAP
+                )
+            ])
+
+    @staticmethod
+    def rgb_to_name(rgb: np.ndarray):
+        return ColorMapper.color_id_to_name(
+            ColorMapper.rgb_to_id(rgb)
+        )
+    
+    @staticmethod
+    def rgb_to_id(rgb: np.ndarray):
+        return ColorMapper.FULL_COLOR_MAP[
+            ColorMapper.rgb_to_hex(rgb)
+        ]
+
+    @staticmethod
+    def rgb_to_hex(rgb: np.ndarray):
         """Convert rgb tuple to hexadecimal string."""
-        return ("#%02x%02x%02x" % rgb).upper()
+        return ("#%02x%02x%02x" % tuple(rgb)).upper()
 
     @staticmethod
     def color_id_to_name(color_id: int):
         """More verbose color indicator from a pixel color id."""
-        if color_id in ColorMapper.NAME_MAP.keys():
-            return "{} ({})".format(ColorMapper.NAME_MAP[color_id], str(color_id))
+        if color_id in ColorMapper.FULL_NAME_MAP.keys():
+            return "{} ({})".format(ColorMapper.FULL_NAME_MAP[color_id], str(color_id))
         return "Invalid Color ({})".format(str(color_id))
 
     @staticmethod
-    def closest_color(
-        target_rgb: tuple, rgb_colors_array: list
-    ):
-        """Find the closest rgb color from palette to a target rgb color"""
+    def correct_image(target_image: np.ndarray) -> np.ndarray:
+        """
+        Find the closest rgb color from palette to a target rgb color
+        
+        Old method is to just take the linear distance from color to the palette options
+        This is bad when the template does not have accurate colors as it does not model
+        human perception and color contributions to brightness
+        https://en.wikipedia.org/wiki/Color_difference
+        color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
 
-        r, g, b = target_rgb[:3]
-        color_diffs = []
-        for color in rgb_colors_array:
-            cr, cg, cb = color
-            # Old method is to just take the linear distance from color to the palette options
-            # This is bad when the template does not have accurate colors as it does not model
-            # human perception and color contributions to brightness
-            # https://en.wikipedia.org/wiki/Color_difference
-            # color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
+        For now, using a redmean approximation for sRGB colors
+        Should be the same in cases of accurate color reference
+        Otherwise provides
+        """
 
-            # For now, using a redmean approximation for sRGB colors
-            # Should be the same in cases of accurate color reference
-            # Otherwise provides 
-            rmean = (r + cr)/2
-            rdelta = r - cr
-            gdelta = g - cg
-            bdelta = b - cb
-            color_diff = math.sqrt(((2 + rmean/256) * rdelta ** 2) + (4 * gdelta ** 2) + ((2 + (255-rmean)/256) * bdelta ** 2))
-            color_diffs.append((color_diff, color))
-        return min(color_diffs)[1]
-
-    def generate_rgb_colors_array(self):
-        """Generate array of available rgb colors to be used"""
-        if self.colors_count < 32:
-            return [
-                ImageColor.getcolor(color_hex, "RGB")
-                for color_hex in list(ColorMapper.COLOR_MAP.keys())
-            ]
-        else:
-            return [
-                ImageColor.getcolor(color_hex, "RGB")
-                for color_hex in list(ColorMapper.FULL_COLOR_MAP.keys())
-            ]
+        corrected_image = target_image
+        
+        # Image dimension (m x n x 3)
+        # Palette dimension (p x 3)
+        
+        # mean_r: mean of red channel with each palette color
+        # (m x n x 1) + (1 x 1 x p) -> (m x n x p)
+        mean_r = (target_image[...,None,0]
+                  + ColorMapper.COLORS[None,None,:,0]) / 220
+        # delta_rgb: difference between each pixel and each palette color
+        # (m x n x 1 x 3) - (1 x 1 x p x 3) -> (m x n x p x 3)
+        delta_rgb = (target_image[...,None,:3]
+                     - ColorMapper.COLORS[None,None,...])
+        # weights: [2 + r_mean/256, 4, 2 + (255 - r_mean)/256]
+        # (m x n x p x 3)
+        weights = np.empty_like(delta_rgb)
+        weights[...,0] = 2 + mean_r/256
+        weights[...,1] = 4
+        weights[...,2] = 3 - mean_r/256
+        # delta_c: weighted distance between each pixel and each palette color
+        # (m x n x p x 3) * (m x n x p x 3) -> (m x n x p)
+        delta_c = np.einsum('...i,...i->...', weights, delta_rgb**2)
+        # new_rgb_id: palette color id with minimum distance to the corresponding pixel
+        # (m x n x p) -> (m x n)
+        corrected_color_ids = np.argmin(delta_c, axis=-1)
+        corrected_image[...,:3] = ColorMapper.COLORS[corrected_color_ids]
+        return corrected_image.astype(np.uint8)
