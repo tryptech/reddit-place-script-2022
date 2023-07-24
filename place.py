@@ -86,6 +86,7 @@ class PlaceClient:
         # Board information
         self.board = None
         self.wrong_pixels = []
+        self.color_diffs = []
 
     # Update board, templates and canvas offsets
     # Returns position, size and template image
@@ -134,12 +135,9 @@ class PlaceClient:
             # Search for unset pixels
             with self.update_lock:
                 self.compute_wrong_pixels(username)
-                # Pop the first unset pixel
+                # Pop the most visually different pixel
                 if len(self.wrong_pixels) > 0:
-                    if len(self.wrong_pixels) > 1:
-                        coord, new_rgb = self.wrong_pixels.pop(random.randint(0,len(self.wrong_pixels)-1))
-                    else:
-                        coord, new_rgb = self.wrong_pixels.pop()
+                    coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {} of template",
                         username, coord
@@ -167,7 +165,10 @@ class PlaceClient:
                 )
                 if self.board[x, y] == new_rgb:
                     continue  # skip correct pixels
-                self.wrong_pixels.append(((x, y), new_rgb))
+                #calculate color difference
+                diff = ColorMapper.redmean(new_rgb,self.board[x,y])
+                self.wrong_pixels.append(((x, y), new_rgb, diff))
+        self.wrong_pixels = sorted(self.wrong_pixels, key = lambda i: i[2], reverse = True)
 
     def get_visual_position(self, coord, subcanvas):
         raw_x = coord[0] + self.canvas['offset']['visual'][0]
