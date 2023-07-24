@@ -30,9 +30,6 @@ class PlaceClient:
 
         proxy.Init(self)
 
-        # Color palette
-        self.rgb_colors_array: np.ndarray = ColorMapper.generate_rgb_colors_array()
-
         # Auth
         self.access_tokens = {}
         self.access_token_expires_at_timestamp = {}
@@ -124,9 +121,8 @@ class PlaceClient:
             return
         logger.debug("Thread {}: Board has been updated", username)
         target_a = self.template[...,-1]  # alpha channel
-        target_rgb = ColorMapper.closest_color(
-            self.template[...,:-1], self.rgb_colors_array
-        )  # rgb channels converted to nearest colorpalette color
+        # rgb channels converted to nearest colorpalette color
+        target_rgb = ColorMapper.correct_color(self.template[...,:-1])
         coords = np.argwhere(
             (self.board != target_rgb).any(axis=-1) & (target_a == 255)
         )  # get coordinates of wrong pixels relative to template
@@ -148,11 +144,11 @@ class PlaceClient:
         with self.print_lock:
             logger.opt(colors=True).warning(
                 "Thread {}: Attempting to place pixel",
-                username, ColorMapper.color_id_to_name(color_index)
+                username, ColorMapper.id2name(color_index)
             )
-            new_rgb_name = ColorMapper.color_id_to_name(color_index)
-            board_rgb_name = ColorMapper.color_id_to_name(
-                ColorMapper.rgb_to_hex(board_rgb)
+            new_rgb_name = ColorMapper.id2name(color_index)
+            board_rgb_name = ColorMapper.id2name(
+                ColorMapper.rgb2hex(board_rgb)
             )
             print(f"Thread {username}",
                   f"Pixel position: {self.get_visual_position(coord)}",
@@ -222,7 +218,7 @@ class PlaceClient:
             # draw the pixel onto r/place
             logger.info("Thread {} :: PLACING ::", username)
             next_placement_time = self.set_pixel_and_check_ratelimit(
-                ColorMapper.COLOR_MAP[ColorMapper.rgb_to_hex(new_rgb)],
+                ColorMapper.HEX2IP[ColorMapper.rgb2hex(new_rgb)],
                 self.coord + relative, username,
                 new_rgb, target_rgb, board_rgb
             )
