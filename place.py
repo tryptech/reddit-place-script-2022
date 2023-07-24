@@ -257,7 +257,7 @@ class PlaceClient:
             # draw the pixel onto r/place
             logger.info("Thread {} :: PLACING ::", username)
             next_placement_time = self.set_pixel_and_check_ratelimit(
-                ColorMapper.COLOR_MAP[ColorMapper.rgb_to_hex(new_rgb)],
+                ColorMapper.FULL_COLOR_MAP[ColorMapper.rgb_to_hex(new_rgb)],
                 (self.coord[0] + relative[0], self.coord[1] + relative[1]), username,
             )
 
