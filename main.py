@@ -2,7 +2,7 @@ import click
 import sys
 from loguru import logger
 
-from place import PlaceClient
+from src.place import PlaceClient
 
 
 @click.command()
