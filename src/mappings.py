@@ -158,29 +158,37 @@ class ColorMapper:
         return "Invalid Color ({})".format(str(color_id))
 
     @staticmethod
+    def redmean(
+        rgb_a: tuple,  rgb_b: tuple,
+    ):
+        """Compute the redmean aproximation between two pixels"""
+        
+        # Old method is to just take the linear distance from color to the palette options
+        # This is bad when the template does not have accurate colors as it does not model
+        # human perception and color contributions to brightness
+        # https://en.wikipedia.org/wiki/Color_difference
+        # color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
+
+        # For now, using a redmean approximation for sRGB colors
+        # Should be the same in cases of accurate color reference
+        r_a, g_a, b_a = rgb_a
+        r_b, g_b, b_b = rgb_b
+
+        rmean = (r_a + r_b)/2
+        rdelta = r_a - r_b
+        gdelta = g_a - g_b
+        bdelta = b_a - b_b
+        return math.sqrt(((2 + rmean/256) * rdelta ** 2) + (4 * gdelta ** 2) + ((2 + (255-rmean)/256) * bdelta ** 2))
+
+    @staticmethod
     def closest_color(
         target_rgb: tuple, rgb_colors_array: list
     ):
         """Find the closest rgb color from palette to a target rgb color"""
 
-        r, g, b = target_rgb[:3]
         color_diffs = []
         for color in rgb_colors_array:
-            cr, cg, cb = color
-            # Old method is to just take the linear distance from color to the palette options
-            # This is bad when the template does not have accurate colors as it does not model
-            # human perception and color contributions to brightness
-            # https://en.wikipedia.org/wiki/Color_difference
-            # color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
-
-            # For now, using a redmean approximation for sRGB colors
-            # Should be the same in cases of accurate color reference
-            # Otherwise provides 
-            rmean = (r + cr)/2
-            rdelta = r - cr
-            gdelta = g - cg
-            bdelta = b - cb
-            color_diff = math.sqrt(((2 + rmean/256) * rdelta ** 2) + (4 * gdelta ** 2) + ((2 + (255-rmean)/256) * bdelta ** 2))
+            color_diff = ColorMapper.redmean(target_rgb[:3],color)
             color_diffs.append((color_diff, color))
         return min(color_diffs)[1]
 
