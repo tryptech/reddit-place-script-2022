@@ -167,7 +167,7 @@ class PlaceClient:
             else:
                 logger.error("Thread {}: POTENTIALLY SHADOW BANNED", username)
                 logger.error("Thread {}: Pixel placed by {}", username or "no one" , who_placed)
-                return -1
+                return time.time()
             return next_time
         
         logger.debug(response.json().get("errors"))
@@ -225,7 +225,7 @@ class PlaceClient:
                 return
 
             # wait until next rate limit expires
-            logger.info("Thread {}: Until next placement {:0f}s", username, time_to_wait)
+            logger.info("Thread {}: Until next placement {:.0f}s", username, time_to_wait)
             # note: Reddit limits us to place 1 pixel every 5 minutes, so I am setting it to
             # 5 minutes and 30 seconds per pixel
             if self.stop_event.wait(time_to_wait):
