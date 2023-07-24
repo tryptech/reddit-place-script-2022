@@ -30,6 +30,8 @@ class PlaceClient:
 
         proxy.Init(self)
 
+        self.colors_count = 0
+
         # Auth
         self.access_tokens = {}
         self.access_token_expires_at_timestamp = {}
@@ -135,11 +137,11 @@ class PlaceClient:
         with self.print_lock:
             logger.opt(colors=True).warning(
                 "Thread {}: Attempting to place pixel",
-                username, ColorMapper.id2name(color_index)
+                username, ColorMapper.color_id_to_name(color_index)
             )
-            new_rgb_name = ColorMapper.id2name(color_index)
-            board_rgb_name = ColorMapper.id2name(
-                ColorMapper.rgb2hex(board_rgb)
+            new_rgb_name = ColorMapper.color_id_to_name(color_index)
+            board_rgb_name = ColorMapper.color_id_to_name(
+                ColorMapper.rgb_to_hex(board_rgb)
             )
             print(f"Thread {username}",  # shows visual position
                   f"Pixel position: {coord + np.array(self.canvas['offset']['visual'])}",
@@ -154,11 +156,21 @@ class PlaceClient:
 
         # Successfully placed
         if response.json()["data"] is not None:
+            
             next_time = (
                 response.json()["data"]["act"]["data"][0]
                 ["data"]["nextAvailablePixelTimestamp"]
             ) / 1000
-            logger.success("Thread {}: Succeeded placing pixel", username)
+
+            #Check if pixel was placed, potential shadowban
+            who_placed = connect.check(self, coord, color_index, subcanvas, username) 
+            if who_placed == username:
+            
+                logger.success("Thread {}: Succeeded placing pixel", username)
+            else: 
+                logger.error("Thread {}: POTENTIALLY SHADOW BANNED", username)
+                logger.error("Thread {}: Pixel placed by {}", username or "no one" , who_placed)
+                return -1
             return next_time
         
         logger.debug(response.json().get("errors"))
@@ -203,23 +215,23 @@ class PlaceClient:
             # draw the pixel onto r/place
             logger.info("Thread {} :: PLACING ::", username)
             next_placement_time = self.set_pixel_and_check_ratelimit(
-                ColorMapper.HEX2ID[ColorMapper.rgb2hex(new_rgb)],
+                ColorMapper.FULL_COLOR_MAP[ColorMapper.rgb_to_hex(new_rgb)],
                 self.coord + relative, username,
                 new_rgb, target_rgb, board_rgb
             )
 
-            # log next time until drawing
-            time_to_wait = next_placement_time - current_time
+            # next time until drawing with random offset to try dodging shadow bans
+            time_to_wait = next_placement_time - current_time + np.random.randint(30, 180)
 
             if time_to_wait > 10000:
                 logger.warning("Thread {} :: CANCELLED :: Rate-Limit Banned", username)
                 return
 
             # wait until next rate limit expires
-            logger.debug("Thread {}: Until next placement, {}s", username, time_to_wait)
+            logger.info("Thread {}: Until next placement, {}s", username, time_to_wait)
             # note: Reddit limits us to place 1 pixel every 5 minutes, so I am setting it to
             # 5 minutes and 30 seconds per pixel
-            if self.stop_event.wait(self.config_get("unverified_rate_limit") or 330):
+            if self.stop_event.wait(time_to_wait):
                 logger.warning("Thread {} :: CANCELLED :: Stopped by Main Thread", username)
                 return
 

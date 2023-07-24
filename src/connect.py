@@ -7,6 +7,7 @@ from websocket import create_connection
 from websocket._exceptions import WebSocketConnectionClosedException
 import ssl
 from PIL import Image
+from loguru import logger
 
 import src.proxy as proxy
 
@@ -144,6 +145,8 @@ def get_board(self, access_token_in):
         canvas_sockets = []
 
         canvas_count = len(canvas_details["canvasConfigurations"])
+
+        self.colors_count = len(canvas_details["colorPalette"]["colors"])
 
         for i in range(0, canvas_count):
             canvas_sockets.append(2 + i)
@@ -348,8 +351,55 @@ def login(self, username, password, index, current_time):
     # ts stores the time in seconds
     self.access_token_expires_at_timestamp[
         index
-    ] = current_time + access_token_expires_in_seconds
-    logger.debug(
-        "Received new access token: {}************",
-        self.access_tokens.get(index)[:5],
+    ] = current_time + int(access_token_expires_in_seconds)
+    if not self.compactlogging:
+        logger.debug(
+            "Received new access token: {}************",
+            self.access_tokens.get(index)[:5],
+        )
+
+def check(self, coord, color_index, canvas_index, user):
+    logger.debug('Thread {}" Self-checking if placement went through', user)
+
+    url = "https://gql-realtime-2.reddit.com/query"
+    payload = json.dumps(
+        {
+            "operationName": "pixelHistory",
+            "variables": {
+                "input": {
+                    "actionName": "r/replace:get_tile_history",
+                    "PixelMessageData": {
+                        "coordinate": {"x": coord[0] % 1000, "y": coord[1] % 1000},
+                        "colorIndex": color_index,
+                        "canvasIndex": canvas_index,
+                    },
+                }
+            },
+            "query": "mutation pixelHistory($input: ActInput!) {\n  act(input: $input) {\n    data {\n      ... on BasicMessage {\n        id\n        data {\n          ... on GetTileHistoryResponseMessageData {\n            lastModifiedTimestamp\n            userInfo {\n              userID\n              username\n              __typename\n            }\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n",
+        }
     )
+    headers = {
+        "origin": "https://garlic-bread.reddit.com",
+        "referer": "https://garlic-bread.reddit.com/",
+        "apollographql-client-name": "garlic-bread",
+        "Authorization": "Bearer " + self.access_tokens[user],
+        "Content-Type": "application/json",
+    }
+
+    time.sleep(3)
+    response = requests.request(
+        "POST",
+        url,
+        headers=headers,
+        data=payload,
+        proxies=proxy.get_random_proxy(self, username=None),
+    )
+
+    try: 
+        pixel_user = response.json()['data']['act']['data'][0]['data']['userInfo']['username']
+
+        logger.debug('Thread {}: Pixel placed by {}', user, pixel_user)
+    except Exception as e:
+        logger.debug('Thread {}: Pixel placed by no one', user)
+        return None
+    return pixel_user
