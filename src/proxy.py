@@ -7,21 +7,60 @@ from stem.control import Controller
 
 
 def Init(self):
-    self.proxies = self.config_get("proxies")
     self.proxies = (
-        get_proxies(self, self.proxies)
-        if self.proxies is not None
-        else get_proxies_text(self)
-        if os.path.exists(os.path.join(os.getcwd(), "proxies.txt"))
+        get_proxies(self, self.json_data["proxies"])
+        if "proxies" in self.json_data and self.json_data["proxies"] is not None
         else None
     )
-    self.using_tor = self.config_get("using_tor", False)
-    self.tor_password = self.config_get("tor_password", "Passwort")
-    self.tor_delay = self.config_get("tor_delay", 10)
-    self.use_builtin_tor = self.config_get("use_builtin_tor", True)
-    self.tor_port = self.config_get("tor_port", 1881)
-    self.tor_control_port = self.config_get("tor_control_port", 9051)
-    self.tor_ip = self.config_get("tor_ip", "127.0.0.1")
+    if self.proxies is None and os.path.exists(
+        os.path.join(os.getcwd(), "proxies.txt")
+    ):
+        self.proxies = get_proxies_text(self)
+    self.compactlogging = (
+        self.json_data["compact_logging"]
+        if "compact_logging" in self.json_data
+        and self.json_data["compact_logging"] is not None
+        else True
+    )
+    self.using_tor = (
+        self.json_data["using_tor"]
+        if "using_tor" in self.json_data and self.json_data["using_tor"] is not None
+        else False
+    )
+    self.tor_password = (
+        self.json_data["tor_password"]
+        if "tor_password" in self.json_data
+        and self.json_data["tor_password"] is not None
+        else "Passwort"  # this is intentional, as I don't really want to mess around with the torrc again
+    )
+    self.tor_delay = (
+        self.json_data["tor_delay"]
+        if "tor_delay" in self.json_data and self.json_data["tor_delay"] is not None
+        else 10
+    )
+    self.use_builtin_tor = (
+        self.json_data["use_builtin_tor"]
+        if "use_builtin_tor" in self.json_data
+        and self.json_data["use_builtin_tor"] is not None
+        else True
+    )
+    self.tor_port = (
+        self.json_data["tor_port"]
+        if "tor_port" in self.json_data and self.json_data["tor_port"] is not None
+        else 1881
+    )
+    self.tor_control_port = (
+        self.json_data["tor_control_port"]
+        if "tor_port" in self.json_data
+        and self.json_data["tor_control_port"] is not None
+        else 9051
+    )
+    self.tor_ip = (
+        self.json_data["tor_ip"]
+        if "tor_ip" in self.json_data and self.json_data["tor_ip"] is not None
+        else "127.0.0.1"
+    )
+
     print(self.tor_ip)
 
     # tor connection
@@ -83,11 +122,7 @@ def get_random_proxy(self, username=None):
         self.logger.debug("Using proxy: {}", str(random_proxy))
         return random_proxy
     
-    proxy = (
-        self.config_get("workers")[username].get("personal_proxy")
-        if username
-        else None
-    )
+    proxy = self.json_data["workers"][username].get("personal_proxy") if username else None
 
     return {"https": proxy, "http": proxy} if proxy else None
 
