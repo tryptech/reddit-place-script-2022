@@ -45,7 +45,7 @@ class PlaceClient:
         # Template information
         self.coord = coord + np.array(self.canvas['offset']['template_api'])
         self.size = np.array(template.size)
-        self.template = np.array(template)
+        self.template = ColorMapper.correct_image(np.array(template))
 
         # Board information
         self.board: np.ndarray = None
@@ -64,11 +64,12 @@ class PlaceClient:
                 .crop((*self.coord, self.coord[0] + self.size[0], self.coord[1] + self.size[1]))
                 .convert("RGB")
             )
-            # Compute wrong pixels
+            # Compute wrong pixels (cropped template relative position)
             coords = np.argwhere(
                 (self.template[...,3] == 255)
                 & (self.template[...,:3] != self.board).any(axis=-1)
-            )  # get coordinates of wrong pixels relative to template
+            )
+            np.random.shuffle(coords)
             # get rgb values of wrong pixels
             target_rgb = self.template[coords[:,0], coords[:,1]][:,:3]
             self.wrong_pixels = list(zip(coords, target_rgb))
@@ -86,11 +87,8 @@ class PlaceClient:
             self.coord = coord + np.array(self.canvas['offset']['template_api'])
             self.size = np.array(template.size)
             template = np.array(template)
-            self.template = np.concatenate([
-                # rgb channels converted to nearest colorpalette color
-                ColorMapper.correct_image(template[...,:3]),
-                template[...,[3]]
-            ], axis=-1)
+            # rgb channels converted to nearest colorpalette color
+            self.template = ColorMapper.correct_image(template)
             logger.info("Thread {}: Template image and canvas offsets updated", username)
         
     # Thread-safe config getter
@@ -128,21 +126,14 @@ class PlaceClient:
 
     def set_pixel_and_check_ratelimit(self, color_index, coord, username,
                                       new_rgb, target_rgb, board_rgb):
-        # canvas structure:
-        # 0 | 1 | 2
-        # 3 | 4 | 5
-        subcoord = coord // 1000
-        subcanvas = subcoord[0] + 3 * subcoord[1]
 
         with self.print_lock:
             logger.opt(colors=True).warning(
                 "Thread {}: Attempting to place pixel",
-                username, ColorMapper.color_id_to_name(color_index)
+                username
             )
             new_rgb_name = ColorMapper.color_id_to_name(color_index)
-            board_rgb_name = ColorMapper.color_id_to_name(
-                ColorMapper.rgb_to_hex(board_rgb)
-            )
+            board_rgb_name = ColorMapper.rgb_to_name(board_rgb)
             print(f"Thread {username}",  # shows visual position
                   f"Pixel position: {coord + np.array(self.canvas['offset']['visual'])}",
                   f"Template color: [\033[38;2;{';'.join(map(str, target_rgb))}m▉\033[0m]",
@@ -150,7 +141,14 @@ class PlaceClient:
                   f"Board    color: [\033[38;2;{';'.join(map(str, board_rgb))}m▉\033[0m] ({board_rgb_name})",
                   sep='\n')
 
-        response = connect.set_pixel(self, coord % 1000, color_index,
+        # Convert global pixel position to local pixel position (Reddit API)
+        # canvas structure:
+        # 0 | 1 | 2
+        # 3 | 4 | 5
+        subcanvas = (coord // 1000)[0] + 3 * (coord // 1000)[1]
+        coord = coord % 1000
+
+        response = connect.set_pixel(self, coord, color_index,
                                      subcanvas, self.access_tokens[username])
         logger.debug("Thread {}: Received response: {}", username, response.text)
 
@@ -165,9 +163,8 @@ class PlaceClient:
             #Check if pixel was placed, potential shadowban
             who_placed = connect.check(self, coord, color_index, subcanvas, username) 
             if who_placed == username:
-            
                 logger.success("Thread {}: Succeeded placing pixel", username)
-            else: 
+            else:
                 logger.error("Thread {}: POTENTIALLY SHADOW BANNED", username)
                 logger.error("Thread {}: Pixel placed by {}", username or "no one" , who_placed)
                 return -1
@@ -215,7 +212,7 @@ class PlaceClient:
             # draw the pixel onto r/place
             logger.info("Thread {} :: PLACING ::", username)
             next_placement_time = self.set_pixel_and_check_ratelimit(
-                ColorMapper.FULL_COLOR_MAP[ColorMapper.rgb_to_hex(new_rgb)],
+                ColorMapper.rgb_to_id(new_rgb),
                 self.coord + relative, username,
                 new_rgb, target_rgb, board_rgb
             )

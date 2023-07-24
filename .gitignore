@@ -165,4 +165,3 @@ images/*
 *.jpg
 *.jpeg
 update_config.py
-test/

@@ -74,7 +74,7 @@ class ColorMapper:
     }
 
     # map of pixel color ids to verbose name (for debugging)
-    NAME_MAP = {
+    FULL_NAME_MAP = {
         0: "Darkest Red",
         1: "Dark Red",
         2: "Bright Red",
@@ -109,16 +109,45 @@ class ColorMapper:
         31: "White",
     }
 
+    COLORS = np.array([
+        ImageColor.getcolor(color_hex, "RGB")
+        for color_hex in COLOR_MAP
+    ])
+
     @staticmethod
-    def rgb_to_hex(rgb: tuple):
+    def update_colors(colors_count: int):
+        if colors_count != ColorMapper.COLORS.shape[0]:
+            ColorMapper.COLORS = np.array([
+                ImageColor.getcolor(color_hex, "RGB")
+                for color_hex in (
+                    ColorMapper.COLOR_MAP
+                    if colors_count < 32
+                    else ColorMapper.FULL_COLOR_MAP
+                )
+            ])
+
+    @staticmethod
+    def rgb_to_name(rgb: np.ndarray):
+        return ColorMapper.color_id_to_name(
+            ColorMapper.rgb_to_id(rgb)
+        )
+    
+    @staticmethod
+    def rgb_to_id(rgb: np.ndarray):
+        return ColorMapper.FULL_COLOR_MAP[
+            ColorMapper.rgb_to_hex(rgb)
+        ]
+
+    @staticmethod
+    def rgb_to_hex(rgb: np.ndarray):
         """Convert rgb tuple to hexadecimal string."""
-        return ("#%02x%02x%02x" % rgb).upper()
+        return ("#%02x%02x%02x" % tuple(rgb)).upper()
 
     @staticmethod
     def color_id_to_name(color_id: int):
         """More verbose color indicator from a pixel color id."""
-        if color_id in ColorMapper.ID2NAME.keys():
-            return "{} ({})".format(ColorMapper.ID2NAME[color_id], str(color_id))
+        if color_id in ColorMapper.FULL_NAME_MAP.keys():
+            return "{} ({})".format(ColorMapper.FULL_NAME_MAP[color_id], str(color_id))
         return "Invalid Color ({})".format(str(color_id))
 
     @staticmethod
@@ -136,6 +165,8 @@ class ColorMapper:
         Should be the same in cases of accurate color reference
         Otherwise provides
         """
+
+        corrected_image = target_image
         
         # Image dimension (m x n x 3)
         # Palette dimension (p x 3)
@@ -143,11 +174,11 @@ class ColorMapper:
         # mean_r: mean of red channel with each palette color
         # (m x n x 1) + (1 x 1 x p) -> (m x n x p)
         mean_r = (target_image[...,None,0]
-                  + ColorMapper.get_colors[None,None,:,0]) / 2
+                  + ColorMapper.COLORS[None,None,:,0]) / 220
         # delta_rgb: difference between each pixel and each palette color
         # (m x n x 1 x 3) - (1 x 1 x p x 3) -> (m x n x p x 3)
-        delta_rgb = (target_image[...,None,:]
-                     - ColorMapper.get_colors[None,None,...])
+        delta_rgb = (target_image[...,None,:3]
+                     - ColorMapper.COLORS[None,None,...])
         # weights: [2 + r_mean/256, 4, 2 + (255 - r_mean)/256]
         # (m x n x p x 3)
         weights = np.empty_like(delta_rgb)
@@ -160,17 +191,5 @@ class ColorMapper:
         # new_rgb_id: palette color id with minimum distance to the corresponding pixel
         # (m x n x p) -> (m x n)
         corrected_color_ids = np.argmin(delta_c, axis=-1)
-        corrected_image = ColorMapper.get_colors[corrected_color_ids]
+        corrected_image[...,:3] = ColorMapper.COLORS[corrected_color_ids]
         return corrected_image.astype(np.uint8)
-
-    def get_colors(self):
-        """Generate array of available rgb colors to be used"""
-        return np.array([
-            ImageColor.getcolor(color_hex, "RGB")
-            for color_hex in list(
-                ColorMapper.COLOR_MAP.keys()
-                if self.colors_count < 32
-                else ColorMapper.FULL_COLOR_MAP.keys()
-            )
-        ])
-

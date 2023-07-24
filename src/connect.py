@@ -11,6 +11,7 @@ from loguru import logger
 from bs4 import BeautifulSoup
 
 import src.proxy as proxy
+from src.mappings import ColorMapper
 
 
 def set_pixel(self, coord, color_index, canvas_index, access_token):
@@ -145,7 +146,10 @@ def get_board(self, access_token_in):
 
         canvas_count = len(canvas_details["canvasConfigurations"])
 
-        self.colors_count = len(canvas_details["colorPalette"]["colors"])
+        # Update color map
+        colors = canvas_details["colorPalette"]["colors"]
+        ColorMapper.update_colors(len(colors))
+        self.logger.debug("Colors: {}", colors)
 
         for i in range(0, canvas_count):
             canvas_sockets.append(2 + i)
@@ -367,9 +371,9 @@ def check(self, coord, color_index, canvas_index, user):
                 "input": {
                     "actionName": "r/replace:get_tile_history",
                     "PixelMessageData": {
-                        "coordinate": {"x": coord[0] % 1000, "y": coord[1] % 1000},
-                        "colorIndex": color_index,
-                        "canvasIndex": canvas_index,
+                        "coordinate": {"x": int(coord[0]), "y": int(coord[1])},
+                        "colorIndex": int(color_index),
+                        "canvasIndex": int(canvas_index),
                     },
                 }
             },
