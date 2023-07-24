@@ -54,8 +54,10 @@ class PlaceClient:
 
         proxy.Init(self)
 
+        self.colors_count = 0
+
         # Color palette
-        self.rgb_colors_array = ColorMapper.generate_rgb_colors_array()
+        self.rgb_colors_array = ColorMapper.generate_rgb_colors_array(self)
 
         # Auth
         self.access_tokens = {}
@@ -119,6 +121,7 @@ class PlaceClient:
                     .convert("RGB")
                     .load()
                 )
+                self.rgb_colors_array = ColorMapper.generate_rgb_colors_array(self)
                 self.wrong_pixels = []
                 logger.info("Thread {}: Board image updated", username)
 
