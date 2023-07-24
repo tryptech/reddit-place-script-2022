@@ -8,11 +8,10 @@ from websocket._exceptions import WebSocketConnectionClosedException
 import ssl
 from PIL import Image
 from loguru import logger
+from bs4 import BeautifulSoup
 
 import src.proxy as proxy
 
-from loguru import logger
-from bs4 import BeautifulSoup
 
 def set_pixel(self, coord, color_index, canvas_index, access_token):
     # ACCEPTS REDDIT API COORD
