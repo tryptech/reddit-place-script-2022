@@ -29,6 +29,6 @@
     },
     "offset": {
         "visual": [-1500, -1000],
-        "template_api": [500, 0]
+        "template_api": [0, 0]
     }
 }

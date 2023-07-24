@@ -54,8 +54,10 @@ class PlaceClient:
 
         proxy.Init(self)
 
+        self.colors_count = 0
+
         # Color palette
-        self.rgb_colors_array = ColorMapper.generate_rgb_colors_array()
+        self.rgb_colors_array = ColorMapper.generate_rgb_colors_array(self)
 
         # Auth
         self.access_tokens = {}
@@ -119,6 +121,7 @@ class PlaceClient:
                     .convert("RGB")
                     .load()
                 )
+                self.rgb_colors_array = ColorMapper.generate_rgb_colors_array(self)
                 self.wrong_pixels = []
                 logger.info("Thread {}: Board image updated", username)
 
@@ -202,6 +205,7 @@ class PlaceClient:
             else: 
                 logger.error("Thread {}: POTENTIALLY SHADOW BANNED", username)
                 logger.error("Thread {}: Pixel placed by {}", username or "no one" , who_placed)
+                return -1
             return next_time
         
         logger.debug(response.json().get("errors"))
@@ -257,8 +261,8 @@ class PlaceClient:
                 (self.coord[0] + relative[0], self.coord[1] + relative[1]), username,
             )
 
-            # log next time until drawing
-            time_to_wait = next_placement_time - current_time
+            # next time until drawing with random offset to try dodging shadow bans
+            time_to_wait = next_placement_time - current_time + random.randint(30,180)
 
             if time_to_wait > 10000:
                 logger.warning("Thread {} :: CANCELLED :: Rate-Limit Banned", username)

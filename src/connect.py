@@ -145,6 +145,8 @@ def get_board(self, access_token_in):
 
         canvas_count = len(canvas_details["canvasConfigurations"])
 
+        self.colors_count = len(canvas_details["colorPalette"]["colors"])
+
         for i in range(0, canvas_count):
             canvas_sockets.append(2 + i)
             logger.debug("Creating canvas socket {}", canvas_sockets[i])
@@ -373,6 +375,7 @@ def check(self, coord, color_index, canvas_index, user):
         "Content-Type": "application/json",
     }
 
+    time.sleep(3)
     response = requests.request(
         "POST",
         url,
