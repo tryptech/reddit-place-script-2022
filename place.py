@@ -137,7 +137,7 @@ class PlaceClient:
                 self.compute_wrong_pixels(username)
                 # Pop the most visually different pixel
                 if len(self.wrong_pixels) > 0:
-                    coord, new_rgb = self.wrong_pixels.pop()
+                    coord, new_rgb, diff = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {} of template",
                         username, coord
