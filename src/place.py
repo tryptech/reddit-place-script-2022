@@ -112,12 +112,14 @@ class PlaceClient:
 
                 # Pop the first unset pixel
                 if len(self.wrong_pixels) > 0:
-                    coord, rgb = self.wrong_pixels.pop()
+                    coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {}",  # shows visual position
                         username, coord + self.coord + np.array(self.canvas['offset']['visual'])
                     )
-                    return coord, rgb
+                    target_rgb = self.template[coord[0], coord[1], :3]
+                    board_rgb = self.board[coord[0], coord[1], :3]
+                    return coord, new_rgb, target_rgb, board_rgb
             
             # All pixels correct, try again in 10 seconds
             logger.info(
@@ -206,9 +208,7 @@ class PlaceClient:
                 connect.login(self, username, password, username, current_time)
 
             # get current pixel position from input image and replacement color
-            relative, new_rgb = self.get_wrong_pixel(username)
-            target_rgb = self.template[relative[0], relative[1], :-1]
-            board_rgb = self.board[relative[0], relative[1], :]
+            relative, new_rgb, target_rgb, board_rgb = self.get_wrong_pixel(username)
 
             # draw the pixel onto r/place
             logger.info("Thread {} :: PLACING ::", username)
