@@ -2,6 +2,7 @@ import numpy as np
 import time
 import threading
 from loguru import logger
+from json import JSONDecodeError
 
 from src.mappings import ColorMapper
 import src.proxy as proxy
@@ -246,7 +247,10 @@ class PlaceClient:
 
                 # Update config
                 logger.debug("Main: Updating config")
-                self.config_update()
+                try:
+                    self.config_update()
+                except JSONDecodeError:
+                    logger.warning("Main: Failed to update config")
                 for username in self.config_get("workers").keys():
                     if username in threads:
                         continue
