@@ -1,5 +1,4 @@
-import math
-import random
+import numpy as np
 import time
 import threading
 from loguru import logger
@@ -32,7 +31,7 @@ class PlaceClient:
         proxy.Init(self)
 
         # Color palette
-        self.rgb_colors_array = ColorMapper.generate_rgb_colors_array()
+        self.rgb_colors_array: np.ndarray = ColorMapper.generate_rgb_colors_array()
 
         # Auth
         self.access_tokens = {}
@@ -45,12 +44,9 @@ class PlaceClient:
         coord, template = data
 
         # Template information
-        self.coord = (
-            coord[0] + self.canvas['offset']['template_api'][0],
-            coord[1] + self.canvas['offset']['template_api'][1]
-        )
-        self.size = template.size
-        self.template = template.load()
+        self.coord = coord + np.array(self.canvas['offset']['template_api'])
+        self.size = np.array(template.size)
+        self.template = np.array(template)
 
         # Board information
         self.board: np.ndarray = None
@@ -70,24 +66,20 @@ class PlaceClient:
                     return  # skip updating
                 coord, template = data
                 self.canvas = utils.get_json_data(self, self.canvas_path)
-                self.coord = (
-                    coord[0] + self.canvas['offset']['template_api'][0],
-                    coord[1] + self.canvas['offset']['template_api'][1]
-                )
-                self.size = template.size
-                self.template = template.load()
+                self.coord = coord + np.array(self.canvas['offset']['template_api'])
+                self.size = np.array(template.size)
+                self.template = np.array(template)
                 logger.info("Thread {}: Template image and canvas offsets updated", username)
             
             # Update board image if outdated
             if self.board_outdated.is_set() or self.board is None:
                 self.board_outdated.clear()
                 logger.debug("Thread {}: Updating board image", username)
-                self.board = (
+                self.board = np.array(
                     connect
                     .get_board(self, self.access_tokens[username])
                     .crop((*self.coord, self.coord[0] + self.size[0], self.coord[1] + self.size[1]))
                     .convert("RGB")
-                    .load()
                 )
                 self.wrong_pixels = []
                 logger.info("Thread {}: Board image updated", username)
@@ -113,13 +105,10 @@ class PlaceClient:
                 self.compute_wrong_pixels(username)
                 # Pop the first unset pixel
                 if len(self.wrong_pixels) > 0:
-                    if len(self.wrong_pixels) > 1:
-                        coord, new_rgb = self.wrong_pixels.pop(random.randint(0,len(self.wrong_pixels)-1))
-                    else:
-                        coord, new_rgb = self.wrong_pixels.pop()
+                    coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {}",
-                        username, coord
+                        username, coord + self.coord + np.array(self.canvas['offset']['visual'])
                     )
                     return coord, new_rgb
             
@@ -145,17 +134,16 @@ class PlaceClient:
         target_rgb = target_rgb[coords[:,0], coords[:,1]]
         self.wrong_pixels = list(zip(coords, target_rgb))
 
-    def get_visual_position(self, coord, subcanvas):
-        raw_x = coord[0] + self.canvas['offset']['visual'][0]
-        raw_y = coord[1] + self.canvas['offset']['visual'][1]
-        return raw_x, raw_y
+    def get_visual_position(self, coord):
+        return coord + np.array(self.canvas['offset']['visual'])
 
     def set_pixel_and_check_ratelimit(self, color_index, coord, username,
                                       new_rgb, target_rgb, board_rgb):
         # canvas structure:
         # 0 | 1 | 2
         # 3 | 4 | 5
-        subcanvas = coord[0] // 1000 + 3 * (coord[1] // 1000)
+        subcoord = coord // 1000
+        subcanvas = subcoord[0] + 3 * subcoord[1]
 
         with self.print_lock:
             logger.opt(colors=True).warning(
@@ -173,7 +161,8 @@ class PlaceClient:
                   f"Board    color: [\033[38;2;{';'.join(map(str, board_rgb))}m▉\033[0m] ({board_rgb_name})",
                   sep='\n')
 
-        response = connect.set_pixel(self, coord, color_index, subcanvas, self.access_tokens[username])
+        response = connect.set_pixel(self, coord % 1000, color_index,
+                                     subcanvas, self.access_tokens[username])
         logger.debug("Thread {}: Received response: {}", username, response.text)
 
         # Successfully placed
@@ -255,6 +244,8 @@ class PlaceClient:
 
     def start(self):
         self.stop_event.clear()
+        threads = {}
+        i = 0
 
         try:
             while True:
