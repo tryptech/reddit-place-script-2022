@@ -1,5 +1,5 @@
 # Reddit Place Script 2023
-
+ 
 [![Code style: black](./black_badge.svg)](https://github.com/psf/black)
 [![forthebadge](https://forthebadge.com/images/badges/made-with-python.svg)](https://forthebadge.com)
 [![forthebadge](https://forthebadge.com/images/badges/60-percent-of-the-time-works-every-time.svg)](https://forthebadge.com)
