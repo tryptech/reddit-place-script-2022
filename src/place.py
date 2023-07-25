@@ -71,7 +71,13 @@ class PlaceClient:
                 (self.template[...,3] == 255)
                 & (self.template[...,:3] != self.board).any(axis=-1)
             )  # sorted by distance to target color
-            coords = coords[np.argsort(dist[coords[:,0], coords[:,1]])]
+            np.random.shuffle(coords)  # add randomness
+            # use partition instead of sorting to avoid replacing black/white pixels
+            # those have the largest distance
+            coords = coords[
+                np.argpartition(dist[coords[:,0], coords[:,1]],
+                                coords.shape[0] // 2)
+            ]
             # get rgb values of wrong pixels
             target_rgb = self.template[coords[:,0], coords[:,1]][:,:3]
             self.wrong_pixels = list(zip(coords, target_rgb))
