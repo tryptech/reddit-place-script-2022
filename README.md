@@ -226,9 +226,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 A dockerfile is provided. Instructions on installing docker are outside the scope of this guide.
 
-To build: After editing the `config.json` file, run `docker build . -t place-bot`. and wait for the image to build.
+- After editing the `config.json` file,  build the image
+```sh
+docker build -t place-bot .
+```
+> Note: You can use the option `--build-arg` to specify a configuration file
+```sh
+docker build -t place-bot --build-arg CONFIG=custom_config.json .
+```
 
-You can now run it with `docker run place-bot`
+- You can now run it with `docker run place-bot`
 
 ## Contributing
 
