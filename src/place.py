@@ -45,8 +45,7 @@ class PlaceClient:
 
         # Template information
         self.coord = coord + np.array(self.canvas['offset']['template_api'])
-        self.size = np.array(template.size)
-        self.template = ColorMapper.correct_image(np.array(template))
+        self.template = ColorMapper.correct_image(np.swapaxes(template, 0, 1))
 
         # Board information
         self.board: np.ndarray = None
@@ -59,18 +58,20 @@ class PlaceClient:
         if self.board_outdated.is_set() or self.board is None:
             self.board_outdated.clear()
             logger.debug("Thread {}: Updating board image", username)
-            self.board = np.array(
+            self.board = np.swapaxes(
                 connect
                 .get_board(self, self.access_tokens[username])
-                .crop((*self.coord, self.coord[0] + self.size[0], self.coord[1] + self.size[1]))
-                .convert("RGB")
+                .crop((*self.coord, self.coord[0] + self.template.shape[0], self.coord[1] + self.template.shape[1]))
+                .convert("RGB"),
+                0, 1
             )
             # Compute wrong pixels (cropped template relative position)
+            dist = ColorMapper.redmean_dist(self.board, self.template)
             coords = np.argwhere(
                 (self.template[...,3] == 255)
                 & (self.template[...,:3] != self.board).any(axis=-1)
-            )
-            np.random.shuffle(coords)
+            )  # sorted by distance to target color
+            coords = coords[np.argsort(dist[coords[:,0], coords[:,1]])]
             # get rgb values of wrong pixels
             target_rgb = self.template[coords[:,0], coords[:,1]][:,:3]
             self.wrong_pixels = list(zip(coords, target_rgb))
@@ -86,10 +87,7 @@ class PlaceClient:
             coord, template = data
             self.canvas = utils.get_json_data(self, self.canvas_path)
             self.coord = coord + np.array(self.canvas['offset']['template_api'])
-            self.size = np.array(template.size)
-            template = np.array(template)
-            # rgb channels converted to nearest colorpalette color
-            self.template = ColorMapper.correct_image(template)
+            self.template = ColorMapper.correct_image(np.swapaxes(template, 0, 1))
             logger.info("Thread {}: Template image and canvas offsets updated", username)
         
     # Thread-safe config getter
