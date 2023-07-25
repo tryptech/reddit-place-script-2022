@@ -1,26 +1,30 @@
-# Reddit Place Script 2023
+# roboco
 
 [![Code style: black](./black_badge.svg)](https://github.com/psf/black)
 [![forthebadge](https://forthebadge.com/images/badges/made-with-python.svg)](https://forthebadge.com)
 [![forthebadge](https://forthebadge.com/images/badges/60-percent-of-the-time-works-every-time.svg)](https://forthebadge.com)
 
 # Thanks to everyone who contributed! r/place is now over!
-<a href="https://github.com/rdeepak2002/reddit-place-script-2022/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=rdeepak2002/reddit-place-script-2022" />
+<a href="https://github.com/tryptech/roboco/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=tryptech/roboco" />
 </a>
 
 ## About
 
-This is a script to draw an image onto r/place (<https://www.reddit.com/r/place/>).
+This is a script to draw images from a json template onto r/place (<https://www.reddit.com/r/place/>).
 
 It has adapted r/place in 2023.
 
 ## Features
 
 - Support for multiple accounts.
+- Supports multiple .json templates as defined in [templateManager](https://github.com/osuplace/templateManager).
+- Manual/automatic prioritization of specific templates.
+- Automatically updates accounts list and templates.
 - Determines the cooldown time remaining for each account.
 - Detects existing matching pixels on the r/place map and skips them.
 - Automatically converts colors to the r/place color palette.
+- Prioritizes pixels based on perceptual difference to template.
 - Easy(ish) to read output with colors.
 - SOCKS proxy support.
 - No client id and secret needed.
@@ -60,7 +64,7 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
     // Filter only templates with names in this list, if empty take all
     "names": ["template1_name1", "template1_name2", "template2_name1"],
     //Where the template image will be saved or loaded from
-    "image_path": "image.png",
+    "image_path": "template.png",
     // delay between starting threads (can be 0)
     "thread_delay": 2,
     // array of accounts to use
@@ -83,7 +87,7 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
 ### Notes
 
 - Use `.png` if you wish to make use of transparency or non rectangular images
-- If you use 2 factor authentication (2FA) in your account, then change `password` to `password:XXXXXX` where `XXXXXX` is your 2FA code.
+- ~If you use 2 factor authentication (2FA) in your account, then change `password` to `password:XXXXXX` where `XXXXXX` is your 2FA code.~ This no longer appears to work.
 
 ## Run the Script
 
