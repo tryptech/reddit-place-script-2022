@@ -169,6 +169,13 @@ class PlaceClient:
                 diff = ColorMapper.redmean(new_rgb,self.board[x,y])
                 self.wrong_pixels.append(((x, y), new_rgb, diff))
         self.wrong_pixels = sorted(self.wrong_pixels, key = lambda i: i[2], reverse = True)
+        
+        for i in range(len(self.wrong_pixels)-1,0,-1):
+            
+            j = max(0,min(random.randint(i-2,i+2),len(self.wrong_pixels)-1))
+ 
+            # Swap arr[i] with the element at random index
+            self.wrong_pixels[i],self.wrong_pixels[j] = self.wrong_pixels[j],self.wrong_pixels[i]
 
     def get_visual_position(self, coord, subcanvas):
         raw_x = coord[0] + self.canvas['offset']['visual'][0]
