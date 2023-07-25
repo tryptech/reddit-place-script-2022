@@ -151,45 +151,35 @@ class ColorMapper:
         return "Invalid Color ({})".format(str(color_id))
 
     @staticmethod
-    def correct_image(target_image: np.ndarray) -> np.ndarray:
+    def redmean_dist(image: np.ndarray, target: np.ndarray):
         """
-        Find the closest rgb color from palette to a target rgb color
-        
-        Old method is to just take the linear distance from color to the palette options
-        This is bad when the template does not have accurate colors as it does not model
-        human perception and color contributions to brightness
+        Calculate the redmean distance between two rgb colors
         https://en.wikipedia.org/wiki/Color_difference
-        color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
-
-        For now, using a redmean approximation for sRGB colors
-        Should be the same in cases of accurate color reference
-        Otherwise provides
         """
+        
+        # convert to float to prevent overflow
+        image = image[...,:3].astype(np.float32)
+        target = target[...,:3].astype(np.float32)
 
-        corrected_image = target_image
-        
-        # Image dimension (m x n x 3)
-        # Palette dimension (p x 3)
-        
-        # mean_r: mean of red channel with each palette color
-        # (m x n x 1) + (1 x 1 x p) -> (m x n x p)
-        mean_r = (target_image[...,None,0]
-                  + ColorMapper.COLORS[None,None,:,0]) / 220
-        # delta_rgb: difference between each pixel and each palette color
-        # (m x n x 1 x 3) - (1 x 1 x p x 3) -> (m x n x p x 3)
-        delta_rgb = (target_image[...,None,:3]
-                     - ColorMapper.COLORS[None,None,...])
-        # weights: [2 + r_mean/256, 4, 2 + (255 - r_mean)/256]
-        # (m x n x p x 3)
+        mean_r = 0.5 * image[...,0] + 0.5 * target[...,0]
+        delta_rgb = image - target
         weights = np.empty_like(delta_rgb)
         weights[...,0] = 2 + mean_r/256
         weights[...,1] = 4
         weights[...,2] = 3 - mean_r/256
-        # delta_c: weighted distance between each pixel and each palette color
-        # (m x n x p x 3) * (m x n x p x 3) -> (m x n x p)
-        delta_c = np.einsum('...i,...i->...', weights, delta_rgb**2)
-        # new_rgb_id: palette color id with minimum distance to the corresponding pixel
-        # (m x n x p) -> (m x n)
-        corrected_color_ids = np.argmin(delta_c, axis=-1)
-        corrected_image[...,:3] = ColorMapper.COLORS[corrected_color_ids]
-        return corrected_image.astype(np.uint8)
+        return np.einsum('...i,...i->...', weights, delta_rgb**2)
+
+    @staticmethod
+    def correct_image(target_image: np.ndarray) -> np.ndarray:
+        image = np.empty_like(target_image)
+        correction_dist = np.empty(
+            target_image.shape[:2] + (ColorMapper.COLORS.shape[0],),
+            dtype=np.uint8)
+        
+        for i, color in enumerate(ColorMapper.COLORS):
+            correction_dist[...,i] = ColorMapper.redmean_dist(target_image, color)
+        
+        ids = np.argmin(correction_dist, axis=-1)
+        image[...,:3] = ColorMapper.COLORS[ids].astype(np.uint8)
+        image[...,3] = target_image[...,3]
+        return image

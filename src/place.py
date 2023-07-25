@@ -2,6 +2,7 @@ import numpy as np
 import time
 import threading
 from loguru import logger
+from json import JSONDecodeError
 
 from src.mappings import ColorMapper
 import src.proxy as proxy
@@ -44,8 +45,7 @@ class PlaceClient:
 
         # Template information
         self.coord = coord + np.array(self.canvas['offset']['template_api'])
-        self.size = np.array(template.size)
-        self.template = ColorMapper.correct_image(np.array(template))
+        self.template = ColorMapper.correct_image(np.swapaxes(template, 0, 1))
 
         # Board information
         self.board: np.ndarray = None
@@ -58,18 +58,20 @@ class PlaceClient:
         if self.board_outdated.is_set() or self.board is None:
             self.board_outdated.clear()
             logger.debug("Thread {}: Updating board image", username)
-            self.board = np.array(
+            self.board = np.swapaxes(
                 connect
                 .get_board(self, self.access_tokens[username])
-                .crop((*self.coord, self.coord[0] + self.size[0], self.coord[1] + self.size[1]))
-                .convert("RGB")
+                .crop((*self.coord, self.coord[0] + self.template.shape[0], self.coord[1] + self.template.shape[1]))
+                .convert("RGB"),
+                0, 1
             )
             # Compute wrong pixels (cropped template relative position)
+            dist = ColorMapper.redmean_dist(self.board, self.template)
             coords = np.argwhere(
                 (self.template[...,3] == 255)
                 & (self.template[...,:3] != self.board).any(axis=-1)
-            )
-            np.random.shuffle(coords)
+            )  # sorted by distance to target color
+            coords = coords[np.argsort(dist[coords[:,0], coords[:,1]])]
             # get rgb values of wrong pixels
             target_rgb = self.template[coords[:,0], coords[:,1]][:,:3]
             self.wrong_pixels = list(zip(coords, target_rgb))
@@ -85,10 +87,7 @@ class PlaceClient:
             coord, template = data
             self.canvas = utils.get_json_data(self, self.canvas_path)
             self.coord = coord + np.array(self.canvas['offset']['template_api'])
-            self.size = np.array(template.size)
-            template = np.array(template)
-            # rgb channels converted to nearest colorpalette color
-            self.template = ColorMapper.correct_image(template)
+            self.template = ColorMapper.correct_image(np.swapaxes(template, 0, 1))
             logger.info("Thread {}: Template image and canvas offsets updated", username)
         
     # Thread-safe config getter
@@ -111,12 +110,14 @@ class PlaceClient:
 
                 # Pop the first unset pixel
                 if len(self.wrong_pixels) > 0:
-                    coord, rgb = self.wrong_pixels.pop()
+                    coord, new_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {}",  # shows visual position
                         username, coord + self.coord + np.array(self.canvas['offset']['visual'])
                     )
-                    return coord, rgb
+                    target_rgb = self.template[coord[0], coord[1], :3]
+                    board_rgb = self.board[coord[0], coord[1], :3]
+                    return coord, new_rgb, target_rgb, board_rgb
             
             # All pixels correct, try again in 10 seconds
             logger.info(
@@ -205,9 +206,7 @@ class PlaceClient:
                 connect.login(self, username, password, username, current_time)
 
             # get current pixel position from input image and replacement color
-            relative, new_rgb = self.get_wrong_pixel(username)
-            target_rgb = self.template[relative[0], relative[1], :-1]
-            board_rgb = self.board[relative[0], relative[1], :]
+            relative, new_rgb, target_rgb, board_rgb = self.get_wrong_pixel(username)
 
             # draw the pixel onto r/place
             logger.info("Thread {} :: PLACING ::", username)
@@ -218,7 +217,7 @@ class PlaceClient:
             )
 
             # next time until drawing with random offset to try dodging shadow bans
-            time_to_wait = next_placement_time - current_time + np.random.randint(30, 180)
+            time_to_wait = next_placement_time - current_time + np.random.randint(0, 4) ** 4
 
             if time_to_wait > 10000:
                 logger.warning("Thread {} :: CANCELLED :: Rate-Limit Banned", username)
@@ -246,7 +245,10 @@ class PlaceClient:
 
                 # Update config
                 logger.debug("Main: Updating config")
-                self.config_update()
+                try:
+                    self.config_update()
+                except JSONDecodeError:
+                    logger.warning("Main: Failed to update config")
                 for username in self.config_get("workers").keys():
                     if username in threads:
                         continue
