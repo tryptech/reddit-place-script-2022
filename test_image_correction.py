@@ -36,20 +36,30 @@ for template in templates:
     image = np.array(image)
 
     current_time = time.time()
-    corrected_image = ColorMapper.correct_image(image)
+    corrected_image_numpy = ColorMapper.correct_image(image, ColorMapper.FULL_COLOR_MAP)
     total_time += time.time() - current_time
 
     current_time = time.time()
+    corrected_image_base = np.empty_like(image)
     for i in range(image.shape[0]):
         for j in range(image.shape[1]):
-            corrected_image[i][j][:3] = closest_color(image[i][j], ColorMapper.COLORS)
-            corrected_image[i][j][3] = image[i][j][3]
+            corrected_image_base[i][j][:3] = closest_color(image[i][j],
+                                                            ColorMapper.palette_to_rgb(ColorMapper.FULL_COLOR_MAP))
+            corrected_image_base[i][j][3] = image[i][j][3]
     total_time_old += time.time() - current_time
 
-    print(f"Corrected {name} image with numpy")
+    equal = np.array_equal(corrected_image_numpy, corrected_image_base)
 
-    Image.fromarray(corrected_image, 'RGBA').save(f"images/{name}_corrected_numpy.png")
+    print("Corrected {} image. Numpy {} Old".format(
+        name, '==' if equal else '!='
+    ))
+
+    if not equal:
+        diff = np.argwhere((corrected_image_numpy - corrected_image_base).any(axis=-1))
+        print(diff)
+        Image.fromarray(corrected_image_numpy, 'RGBA').save(f"images/{name}_numpy.png")
+        Image.fromarray(corrected_image_base, 'RGBA').save(f"images/{name}_base.png")
 
 print(f"Average image correction time")
 print(f"numpy: {total_time / len(templates)}")
-print(f"old: {total_time_old / len(templates)}")
+print(f"base: {total_time_old / len(templates)}")

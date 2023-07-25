@@ -63,8 +63,6 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
     "priority_url": "https://url.to.the.template3.png",
     // Filter only templates with names in this list, if empty take all
     "names": ["template1_name1", "template1_name2", "template2_name1"],
-    //Where the template image will be saved or loaded from
-    "image_path": "template.png",
     // delay between starting threads (can be 0)
     "thread_delay": 2,
     // array of accounts to use
@@ -114,7 +112,6 @@ Just create multiple child arrays to "workers" in the .json file:
 
 ```json
 {
-    "image_path": "image.png",
     "thread_delay": 2,
 
     "workers": {
@@ -139,13 +136,11 @@ If any JSON decoders errors are found, the `config.json` needs to be fixed. Make
 ```json
 {
     "thread_delay": 2,
-    "unverified_rate_limit": false,
     "proxies": ["1.1.1.1:8080", "2.2.2.2:1234"]
 }
 ```
 
 - thread_delay - Adds a delay between starting a new thread. Can be used to avoid ratelimiting.
-- unverified_rate_limit - Sets the pixel place frequency to the unverified account limit.
 - proxies - Sets proxies to use for sending requests to reddit. The proxy used is randomly selected for each request. Can be used to avoid ratelimiting.
 - Transparency can be achieved by using the RGB value (69, 42, 0) in any part of your image.
 - If you'd like, you can enable Verbose Mode by adding `--verbose` to "python main.py". This will output a lot more information, and not necessarily in the right order, but it is useful for development and debugging.

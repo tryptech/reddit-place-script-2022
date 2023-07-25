@@ -1,4 +1,4 @@
-import math
+import numpy as np
 from PIL import ImageColor
 
 
@@ -39,78 +39,7 @@ class ColorMapper:
     }
 
     # map of pixel color ids to verbose name (for debugging)
-    NAME_MAP = {
-        0: "Darkest Red",
-        1: "Dark Red",
-        2: "Bright Red",
-        3: "Orange",
-        4: "Yellow",
-        5: "Pale yellow",
-        6: "Dark Green",
-        7: "Green",
-        8: "Light Green",
-        9: "Dark Teal",
-        10: "Teal",
-        11: "Light Teal",
-        12: "Dark Blue",
-        13: "Blue",
-        14: "Light Blue",
-        15: "Indigo",
-        16: "Periwinkle",
-        17: "Lavender",
-        18: "Dark Purple",
-        19: "Purple",
-        20: "pale purple",
-        21: "magenta",
-        22: "Pink",
-        23: "Light Pink",
-        24: "Dark Brown",
-        25: "Brown",
-        26: "Beige",
-        27: "Black",
-        28: "ark gray",
-        29: "Gray",
-        30: "Light Gray",
-        31: "White",
-    }
-    
-    COLOR_MAP = {
-        #"#6D001A": 0,  # darkest red
-        "#BE0039": 1,  # dark red
-        "#FF4500": 2,  # red
-        "#FFA800": 3,  # orange
-        "#FFD635": 4,  # yellow
-        #"#FFF8B8": 5,  # pale yellow
-        "#00A368": 6,  # dark green
-        "#00CC78": 7,  # green
-        "#7EED56": 8,  # light green
-        "#00756F": 9,  # dark teal
-        "#009EAA": 10,  # teal
-        #"#00CCC0": 11,  # light teal
-        "#2450A4": 12,  # dark blue
-        "#3690EA": 13,  # blue
-        "#51E9F4": 14,  # light blue
-        "#493AC1": 15,  # indigo
-        "#6A5CFF": 16,  # periwinkle
-        #"#94B3FF": 17,  # lavender
-        "#811E9F": 18,  # dark purple
-        "#B44AC0": 19,  # purple
-        #"#E4ABFF": 20,  # pale purple
-        #"#DE107F": 21,  # magenta
-        "#FF3881": 22,  # pink
-        "#FF99AA": 23,  # light pink
-        "#6D482F": 24,  # dark brown
-        "#9C6926": 25,  # brown
-        #"#FFB470": 26,  # beige
-        "#000000": 27,  # black
-        #"#515252": 28,  # dark gray
-        "#898D90": 29,  # gray
-        "#D4D7D9": 30,  # light gray
-        "#FFFFFF": 31,  # white
-    }
-
-    # map of pixel color ids to verbose name (for debugging)
-    NAME_MAP = {
+    FULL_NAME_MAP = {
         0: "Darkest Red",
         1: "Dark Red",
         2: "Bright Red",
@@ -146,61 +75,67 @@ class ColorMapper:
     }
 
     @staticmethod
-    def rgb_to_hex(rgb: tuple):
+    def palette_to_rgb(palette: dict):
+        return np.array([
+            ImageColor.getcolor(color_hex, "RGB")
+            for color_hex in palette
+        ])
+
+    @staticmethod
+    def rgb_to_name(rgb: np.ndarray):
+        return ColorMapper.color_id_to_name(
+            ColorMapper.rgb_to_id(rgb)
+        )
+    
+    @staticmethod
+    def rgb_to_id(rgb: np.ndarray):
+        return ColorMapper.FULL_COLOR_MAP[
+            ColorMapper.rgb_to_hex(rgb)
+        ]
+
+    @staticmethod
+    def rgb_to_hex(rgb: np.ndarray):
         """Convert rgb tuple to hexadecimal string."""
-        return ("#%02x%02x%02x" % rgb).upper()
+        return ("#%02x%02x%02x" % tuple(rgb)).upper()
 
     @staticmethod
     def color_id_to_name(color_id: int):
         """More verbose color indicator from a pixel color id."""
-        if color_id in ColorMapper.NAME_MAP.keys():
-            return "{} ({})".format(ColorMapper.NAME_MAP[color_id], str(color_id))
+        if color_id in ColorMapper.FULL_NAME_MAP.keys():
+            return "{} ({})".format(ColorMapper.FULL_NAME_MAP[color_id], str(color_id))
         return "Invalid Color ({})".format(str(color_id))
 
     @staticmethod
-    def redmean(
-        rgb_a: tuple,  rgb_b: tuple,
-    ):
-        """Compute the redmean aproximation between two pixels"""
+    def redmean_dist(image: np.ndarray, target: np.ndarray):
+        """
+        Calculate the redmean distance between two rgb colors
+        https://en.wikipedia.org/wiki/Color_difference
+        """
         
-        # Old method is to just take the linear distance from color to the palette options
-        # This is bad when the template does not have accurate colors as it does not model
-        # human perception and color contributions to brightness
-        # https://en.wikipedia.org/wiki/Color_difference
-        # color_diff = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
+        # convert to float to prevent overflow
+        image = image[...,:3].astype(float)
+        target = target[...,:3].astype(float)
 
-        # For now, using a redmean approximation for sRGB colors
-        # Should be the same in cases of accurate color reference
-        r_a, g_a, b_a = rgb_a
-        r_b, g_b, b_b = rgb_b
-
-        rmean = (r_a + r_b)/2
-        rdelta = r_a - r_b
-        gdelta = g_a - g_b
-        bdelta = b_a - b_b
-        return math.sqrt(((2 + rmean/256) * rdelta ** 2) + (4 * gdelta ** 2) + ((2 + (255-rmean)/256) * bdelta ** 2))
+        mean_r = 0.5 * image[...,0] + 0.5 * target[...,0]
+        delta_rgb = image - target
+        weights = np.empty_like(delta_rgb)
+        weights[...,0] = 2 + mean_r/256
+        weights[...,1] = 4
+        weights[...,2] = 3 - mean_r/256
+        return np.einsum('...i,...i->...', weights, delta_rgb**2)
 
     @staticmethod
-    def closest_color(
-        target_rgb: tuple, rgb_colors_array: list
-    ):
-        """Find the closest rgb color from palette to a target rgb color"""
-
-        color_diffs = []
-        for color in rgb_colors_array:
-            color_diff = ColorMapper.redmean(target_rgb[:3],color)
-            color_diffs.append((color_diff, color))
-        return min(color_diffs)[1]
-
-    def generate_rgb_colors_array(self):
-        """Generate array of available rgb colors to be used"""
-        if self.colors_count < 32:
-            return [
-                ImageColor.getcolor(color_hex, "RGB")
-                for color_hex in list(ColorMapper.COLOR_MAP.keys())
-            ]
-        else:
-            return [
-                ImageColor.getcolor(color_hex, "RGB")
-                for color_hex in list(ColorMapper.FULL_COLOR_MAP.keys())
-            ]
+    def correct_image(target_image: np.ndarray, colors: dict) -> np.ndarray:
+        image = np.empty_like(target_image)
+        colors = ColorMapper.palette_to_rgb(colors)
+        correction_dist = np.empty(
+            target_image.shape[:2] + (colors.shape[0],)
+        )
+        
+        for i, color in enumerate(colors):
+            correction_dist[...,i] = ColorMapper.redmean_dist(target_image, color)
+        
+        ids = np.argmin(correction_dist, axis=-1)
+        image[...,:3] = colors[ids].astype(np.uint8)
+        image[...,3] = target_image[...,3]
+        return image
