@@ -124,7 +124,6 @@ class PlaceClient:
                 )
                 self.rgb_colors_array = ColorMapper.generate_rgb_colors_array(self)
                 self.wrong_pixels = []
-                self.compute_wrong_pixels(username)
                 logger.info("Thread {}: Board image updated", username)
 
     def get_wrong_pixel(self, username):
@@ -135,12 +134,13 @@ class PlaceClient:
 
             # Search for unset pixels
             with self.update_lock:
+                self.compute_wrong_pixels(username)
                 # Pop the most visually different pixel
                 if len(self.wrong_pixels) > 0:
                     coord, new_rgb, diff = self.wrong_pixels.pop()
                     logger.info(
-                        "Thread {}: Found unset pixel at {} of template",
-                        username, coord
+                        "Thread {}: Found unset pixel at {} of template with color distance {:.0f}",
+                        username, coord, diff
                     )
                     return coord, new_rgb
             
@@ -187,8 +187,12 @@ class PlaceClient:
             self.get_visual_position(coord, subcanvas)
         )
 
-        response = connect.set_pixel(self, coord, color_index, subcanvas, self.access_tokens[username])
-        logger.debug("Thread {}: Received response: {}", username, response.text)
+        try:
+            response = connect.set_pixel(self, coord, color_index, subcanvas, self.access_tokens[username])
+            logger.debug("Thread {}: Received response: {}", username, response.text)
+        except:
+            logger.error("Thread {}: Could not communicate with reddit", username)
+            return 60
 
         # Successfully placed
         if response.json()["data"] is not None:
