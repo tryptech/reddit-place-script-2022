@@ -59,8 +59,6 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
     "priority_url": "https://url.to.the.template3.png",
     // Filter only templates with names in this list, if empty take all
     "names": ["template1_name1", "template1_name2", "template2_name1"],
-    //Where the template image will be saved or loaded from
-    "image_path": "image.png",
     // delay between starting threads (can be 0)
     "thread_delay": 2,
     // array of accounts to use
@@ -110,7 +108,6 @@ Just create multiple child arrays to "workers" in the .json file:
 
 ```json
 {
-    "image_path": "image.png",
     "thread_delay": 2,
 
     "workers": {

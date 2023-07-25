@@ -10,6 +10,7 @@ def clear():
     os.system("cls||clear")
     return
 
+
 def get_json_data(self, config_path):
     configFilePath = os.path.join(os.getcwd(), config_path)
 
@@ -123,11 +124,6 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
     image = image.crop((*coord, *dim))
 
     self.logger.info("Loaded image size: {}", image.size)
-
-    # Save the template image
-    path = self.config_get('image_path')
-    image.save(path)
-    self.logger.info("Saved template image to {}", path)
 
     # TEMPLATE API COORDS
     return coord, image

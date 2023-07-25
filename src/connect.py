@@ -148,8 +148,7 @@ def get_board(self, access_token_in):
 
         # Update color map
         colors = canvas_details["colorPalette"]["colors"]
-        ColorMapper.update_colors(len(colors))
-        self.logger.debug("Colors: {}", colors)
+        colors = {color["hex"]: color["index"] for color in colors}
 
         for i in range(0, canvas_count):
             canvas_sockets.append(2 + i)
@@ -262,7 +261,7 @@ def get_board(self, access_token_in):
             dy_offset = int(canvas_details["canvasConfigurations"][idx]["dy"])
             new_img.paste(img[1], (dx_offset, dy_offset))
 
-        return new_img
+        return new_img, colors
 
 def login(self, username, password, index, current_time):
     while not self.stop_event.is_set():
