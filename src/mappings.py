@@ -38,41 +38,6 @@ class ColorMapper:
         "#FFFFFF": 31,  # white
     }
 
-    COLOR_MAP = {
-        #"#6D001A": 0,  # darkest red
-        "#BE0039": 1,  # dark red
-        "#FF4500": 2,  # red
-        "#FFA800": 3,  # orange
-        "#FFD635": 4,  # yellow
-        #"#FFF8B8": 5,  # pale yellow
-        "#00A368": 6,  # dark green
-        "#00CC78": 7,  # green
-        "#7EED56": 8,  # light green
-        "#00756F": 9,  # dark teal
-        "#009EAA": 10,  # teal
-        #"#00CCC0": 11,  # light teal
-        "#2450A4": 12,  # dark blue
-        "#3690EA": 13,  # blue
-        "#51E9F4": 14,  # light blue
-        "#493AC1": 15,  # indigo
-        "#6A5CFF": 16,  # periwinkle
-        #"#94B3FF": 17,  # lavender
-        "#811E9F": 18,  # dark purple
-        "#B44AC0": 19,  # purple
-        #"#E4ABFF": 20,  # pale purple
-        #"#DE107F": 21,  # magenta
-        "#FF3881": 22,  # pink
-        "#FF99AA": 23,  # light pink
-        "#6D482F": 24,  # dark brown
-        "#9C6926": 25,  # brown
-        #"#FFB470": 26,  # beige
-        "#000000": 27,  # black
-        #"#515252": 28,  # dark gray
-        "#898D90": 29,  # gray
-        "#D4D7D9": 30,  # light gray
-        "#FFFFFF": 31,  # white
-    }
-
     # map of pixel color ids to verbose name (for debugging)
     FULL_NAME_MAP = {
         0: "Darkest Red",
@@ -109,22 +74,12 @@ class ColorMapper:
         31: "White",
     }
 
-    COLORS = np.array([
-        ImageColor.getcolor(color_hex, "RGB")
-        for color_hex in COLOR_MAP
-    ])
-
     @staticmethod
-    def update_colors(colors_count: int):
-        if colors_count != ColorMapper.COLORS.shape[0]:
-            ColorMapper.COLORS = np.array([
-                ImageColor.getcolor(color_hex, "RGB")
-                for color_hex in (
-                    ColorMapper.COLOR_MAP
-                    if colors_count < 32
-                    else ColorMapper.FULL_COLOR_MAP
-                )
-            ])
+    def palette_to_rgb(palette: dict):
+        return np.array([
+            ImageColor.getcolor(color_hex, "RGB")
+            for color_hex in palette
+        ])
 
     @staticmethod
     def rgb_to_name(rgb: np.ndarray):
@@ -158,8 +113,8 @@ class ColorMapper:
         """
         
         # convert to float to prevent overflow
-        image = image[...,:3].astype(np.float32)
-        target = target[...,:3].astype(np.float32)
+        image = image[...,:3].astype(float)
+        target = target[...,:3].astype(float)
 
         mean_r = 0.5 * image[...,0] + 0.5 * target[...,0]
         delta_rgb = image - target
@@ -170,16 +125,17 @@ class ColorMapper:
         return np.einsum('...i,...i->...', weights, delta_rgb**2)
 
     @staticmethod
-    def correct_image(target_image: np.ndarray) -> np.ndarray:
+    def correct_image(target_image: np.ndarray, colors: dict) -> np.ndarray:
         image = np.empty_like(target_image)
+        colors = ColorMapper.palette_to_rgb(colors)
         correction_dist = np.empty(
-            target_image.shape[:2] + (ColorMapper.COLORS.shape[0],),
-            dtype=np.uint8)
+            target_image.shape[:2] + (colors.shape[0],)
+        )
         
-        for i, color in enumerate(ColorMapper.COLORS):
+        for i, color in enumerate(colors):
             correction_dist[...,i] = ColorMapper.redmean_dist(target_image, color)
         
         ids = np.argmin(correction_dist, axis=-1)
-        image[...,:3] = ColorMapper.COLORS[ids].astype(np.uint8)
+        image[...,:3] = colors[ids].astype(np.uint8)
         image[...,3] = target_image[...,3]
         return image

@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 toJSON = {
-    "image_path": "template.png",
     "thread_delay": 3,
     "proxies": None,
     "workers": {},
