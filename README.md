@@ -1,10 +1,11 @@
-# roboco
+# ROBOCO
 
 [![Code style: black](./black_badge.svg)](https://github.com/psf/black)
 [![forthebadge](https://forthebadge.com/images/badges/made-with-python.svg)](https://forthebadge.com)
 [![forthebadge](https://forthebadge.com/images/badges/60-percent-of-the-time-works-every-time.svg)](https://forthebadge.com)
 
-# Thanks to everyone who contributed! r/place is now over!
+## Thanks to everyone who contributed! r/place is now over
+
 <a href="https://github.com/tryptech/roboco/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=tryptech/roboco" />
 </a>
@@ -35,18 +36,9 @@ It has adapted r/place in 2023.
 
 - [Python 3.10](https://www.python.org/downloads/)
 
-## macOS
-
-If you want to use tor on macOS. you'll need to provide your own tor binary or install it via [Homebrew](https://brew.sh) using ``brew install tor``, and start it manually.
-
-Make sure to deactivate the "use_builtin tor"
-option in the config and configure your tor to use the correct ports and password.
-
-*Please note that socks proxy connection to tor doesn't work for the time being, so the config value is for an httpTunnel port*
-
 ## Get Started
 
-Move the file 'config_example.json' to 'config.json'
+Move the file `"config_example.json"` to `"config.json"`
 
 Edit the values to replace with actual credentials and values
 
@@ -54,38 +46,25 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
 
 ```json
 {
-    // The URLs to the template overlays
     "template_urls": [
         "https://url.to.the.template1.png",
         "https://url.to.the.template2.png"
     ],
-    // The URL to a priority template with a filtered list of sources from a template overlay from "template_urls"
     "priority_url": "https://url.to.the.template3.png",
-    // Filter only templates with names in this list, if empty take all
     "names": ["template1_name1", "template1_name2", "template2_name1"],
-    // delay between starting threads (can be 0)
-    "thread_delay": 2,
-    // array of accounts to use
     "workers": {
-        // username of account 1
-        "worker1username": {
-            // password of account 1
-            "password": "password",
-        },
-        // username of account 2
-        "worker1username": {
-            // password of account 2
-            "password": "password",
+        "username": {
+            "password": "password"
         }
-        // etc... add as many accounts as you want (but reddit may detect you the more you add)
     }
 }
 ```
 
-### Notes
-
-- Use `.png` if you wish to make use of transparency or non rectangular images
-- ~If you use 2 factor authentication (2FA) in your account, then change `password` to `password:XXXXXX` where `XXXXXX` is your 2FA code.~ This no longer appears to work.
+- `template_urls` - a list of URLs to the template overlays.
+- `priority_url` - a URL to a priority template with a filtered list of sources from `"template_urls"`.
+- `names` - a list of template names to use from the template overlay. If empty, all templates will be used. `priority_url` will override this.
+- `workers` - an array of accounts to use. Each account has a `"password"` field. You can add as many accounts as you want, but reddit may detect you the more you add.
+- ~~If you use 2 factor authentication (2FA) in your account, then change `password` to `password:XXXXXX` where `XXXXXX` is your 2FA code.~~ This no longer appears to work.
 
 ## Run the Script
 
@@ -102,49 +81,56 @@ chmod +x start.sh startverbose.sh
 ./start.sh or ./startverbose.sh
 ```
 
-**You can get more logs (`DEBUG`) by running the script with `-d` flag:**
+### Python
 
-`python3 main.py -d` or `python3 main.py --debug`
+You can get more logs (`DEBUG`) by running the script with `-d` flag:
+
+```shell
+python3 main.py -d
+python3 main.py --debug
+```
+
+#### **Notes**
+
+If you want to use tor on macOS. you'll need to provide your own tor binary or install it via [Homebrew](https://brew.sh) using ``brew install tor``, and start it manually.
+
+Make sure to deactivate the "use_builtin tor"
+option in the config and configure your tor to use the correct ports and password.
+
+*Please note that socks proxy connection to tor doesn't work for the time
+being, so the config value is for an httpTunnel port*
 
 ## Multiple Workers
 
-Just create multiple child arrays to "workers" in the .json file:
+Just create multiple child arrays to `"workers"` in the .json file:
 
 ```json
-{
-    "thread_delay": 2,
-
-    "workers": {
-        "worker1username": {
-            "password": "password",
-        },
-        "worker2username": {
-            "password": "password",
-        }
+"workers": {
+    "worker1username": {
+        "password": "password"
+    },
+    "worker2username": {
+        "password": "password"
     }
 }
 ```
 
-In this case, both workers will draw random pixels from the input image file.
-
-This is useful if you want different threads drawing different parts of the image with different accounts.
+In this case, both workers will draw random pixels onto r/place that are different from the template image.
 
 ## Other Settings
 
 If any JSON decoders errors are found, the `config.json` needs to be fixed. Make sure to add the below 2 lines in the file.
 
 ```json
-{
-    "thread_delay": 2,
-    "proxies": ["1.1.1.1:8080", "2.2.2.2:1234"]
-}
+"thread_delay": 2,
+"proxies": ["1.1.1.1:8080", "2.2.2.2:1234"]
 ```
 
-- thread_delay - Adds a delay between starting a new thread. Can be used to avoid ratelimiting.
-- proxies - Sets proxies to use for sending requests to reddit. The proxy used is randomly selected for each request. Can be used to avoid ratelimiting.
+- `thread_delay` - the delay between starting threads and board updates. Setting to `0` is not recommended.
+- `proxies` - Sets proxies to use for sending requests to reddit. The proxy used is randomly selected for each request. Can be used to avoid ratelimiting.
 - You can also setup proxies by creating a "proxies" and have a new line for each proxies.
 
-# Tor
+## Tor
 
 Tor can be used as an alternative to normal proxies. Note that currently, you cannot use normal proxies and tor at the same time.
 
@@ -170,7 +156,7 @@ The config values are as follows:
 
 Note that when using the included binaries, only the tunnel port is explicitly set while starting tor.
 
-<h3>If you want to use your own binaries, follow these steps:</h3>
+If you want to use your own binaries, follow these steps:
 
 - Get tor standalone for your platform [here](https://www.torproject.org/download/tor/). For Windows just use the expert bundle. For macOS, you can use [Homebrew](https://brew.sh) to install tor: ``brew install tor``.
 - In your tor folder, create a file named ``torrc``. Copy [this](https://github.com/torproject/tor/blob/main/src/config/torrc.sample.in) into it.
@@ -220,10 +206,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 A dockerfile is provided. Instructions on installing docker are outside the scope of this guide.
 
 - After editing the `config.json` file,  build the image
+
 ```sh
 docker build -t place-bot .
 ```
+
 > Note: You can use the option `--build-arg` to specify a configuration file
+
 ```sh
 docker build -t place-bot --build-arg CONFIG=custom_config.json .
 ```
