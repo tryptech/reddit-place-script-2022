@@ -292,41 +292,42 @@ class PlaceClient:
                 # Reduce CPU usage
                 time.sleep(self.config_get("thread_delay") or 3)
 
-                # Update config
-                logger.debug("Main: Updating config")
-                try:
-                    self.config_update()
-                except JSONDecodeError:
-                    logger.warning("Main: Failed to update config")
-                for username, password in self.config_get("workers").items():
-                    if username in threads:
-                        continue
-                    logger.debug("Main: Adding new worker {}", username)
-                    threads[username] = threading.Thread(
-                        target=self.task,
-                        args=[username, password],
-                    )
-                    threads[username].daemon = True
-                    threads[username].start()
-
-                    # Reduce CPU usage
-                    time.sleep(self.config_get("thread_delay") or 3)
-
-                # Update board image every seconds
+                # Update board image every "thread_delay" seconds
                 logger.debug("Main: Allowing board image update")
                 self.board_outdated.set()
+
+                # Update template image and canvas offsets every ~5 minutes
+                if i % 100 == 0:
+                    logger.debug(
+                        "Main: Allowing template image and canvas offsets update"
+                    )
+                    self.template_outdated.set()
 
                 # Check if any threads are alive
                 if not any(thread.is_alive() for thread in threads.values()):
                     logger.warning("Main: All threads died")
                     break
 
-                # Update template image and canvas offsets every 3-4 minutes
-                if i % 100 == 0:
-                    logger.debug(
-                        "Main: Allowing template image and canvas offsets update"
+                # Update config
+                logger.debug("Main: Updating config")
+                try:
+                    self.config_update()
+                except JSONDecodeError:
+                    logger.warning("Main: Failed to update config")
+
+                # Check and add new workers
+                workers = self.config_get("workers")
+                new_workers = workers.keys() - threads.keys()
+                if len(new_workers) > 0:
+                    logger.debug("Main: Adding new worker {}", username)
+                    username = new_workers.pop()
+                    password = workers[username]
+                    threads[username] = threading.Thread(
+                        target=self.task, args=[username, password]
                     )
-                    self.template_outdated.set()
+                    threads[username].daemon = True
+                    threads[username].start()
+
         # Check for ctrl+c
         except KeyboardInterrupt:
             logger.warning("Main: KeyboardInterrupt received, killing threads...")
