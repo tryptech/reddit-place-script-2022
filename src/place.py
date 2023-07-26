@@ -301,7 +301,6 @@ class PlaceClient:
                 for username, password in self.config_get("workers").items():
                     if username in threads:
                         continue
-                    print(username, password)
                     logger.debug("Main: Adding new worker {}", username)
                     threads[username] = threading.Thread(
                         target=self.task,
