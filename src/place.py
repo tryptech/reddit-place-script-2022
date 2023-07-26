@@ -168,13 +168,13 @@ class PlaceClient:
         logger.opt(colors=True).warning(
             "Thread {}: Attempting to place pixel", username
         )
-        new_rgb_name = ColorMapper.color_id_to_name(color_index)
-        board_rgb_name = ColorMapper.rgb_to_name(board_rgb)
+        target_colorname = ColorMapper.color_id_to_name(color_index)
+        board_colorname = ColorMapper.rgb_to_name(board_rgb)
         print(
             f"Thread {username}",  # shows visual position
             f"Pixel position: {coord + np.array(self.canvas['offset']['visual'])}",
-            f"Expected color: [\033[38;2;{';'.join(map(str, target_rgb))}m▉\033[0m] ({new_rgb_name})",
-            f"Board    color: [\033[38;2;{';'.join(map(str, board_rgb))}m▉\033[0m] ({board_rgb_name})",
+            f"Expected color: [\033[38;2;{';'.join(map(str, target_rgb))}m▉\033[0m] ({target_colorname})",
+            f"Board    color: [\033[38;2;{';'.join(map(str, board_rgb))}m▉\033[0m] ({board_colorname})",
             sep="\n",
         )
 

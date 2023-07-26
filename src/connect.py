@@ -11,7 +11,6 @@ from loguru import logger
 from bs4 import BeautifulSoup
 
 import src.proxy as proxy
-from src.mappings import ColorMapper
 
 
 def set_pixel(self, coord, color_index, canvas_index, access_token):
