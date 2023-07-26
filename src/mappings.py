@@ -76,22 +76,17 @@ class ColorMapper:
 
     @staticmethod
     def palette_to_rgb(palette: dict):
-        return np.array([
-            ImageColor.getcolor(color_hex, "RGB")
-            for color_hex in palette
-        ])
+        return np.array(
+            [ImageColor.getcolor(color_hex, "RGB") for color_hex in palette]
+        )
 
     @staticmethod
     def rgb_to_name(rgb: np.ndarray):
-        return ColorMapper.color_id_to_name(
-            ColorMapper.rgb_to_id(rgb)
-        )
-    
+        return ColorMapper.color_id_to_name(ColorMapper.rgb_to_id(rgb))
+
     @staticmethod
     def rgb_to_id(rgb: np.ndarray):
-        return ColorMapper.FULL_COLOR_MAP[
-            ColorMapper.rgb_to_hex(rgb)
-        ]
+        return ColorMapper.FULL_COLOR_MAP[ColorMapper.rgb_to_hex(rgb)]
 
     @staticmethod
     def rgb_to_hex(rgb: np.ndarray):
@@ -101,7 +96,7 @@ class ColorMapper:
     @staticmethod
     def color_id_to_name(color_id: int):
         """More verbose color indicator from a pixel color id."""
-        if color_id in ColorMapper.FULL_NAME_MAP.keys():
+        if color_id in ColorMapper.FULL_NAME_MAP:
             return "{} ({})".format(ColorMapper.FULL_NAME_MAP[color_id], str(color_id))
         return "Invalid Color ({})".format(str(color_id))
 
@@ -111,7 +106,7 @@ class ColorMapper:
         Calculate the redmean distance between two rgb colors
         https://en.wikipedia.org/wiki/Color_difference
         """
-        
+
         # convert to float to prevent overflow
         image = image[...,:3].astype(float)
         target = target[...,:3].astype(float)
@@ -128,10 +123,8 @@ class ColorMapper:
     def correct_image(target_image: np.ndarray, colors: dict) -> np.ndarray:
         image = np.empty_like(target_image)
         colors = ColorMapper.palette_to_rgb(colors)
-        correction_dist = np.empty(
-            target_image.shape[:2] + (colors.shape[0],)
-        )
-        
+        correction_dist = np.empty(target_image.shape[:2] + (colors.shape[0],))
+
         for i, color in enumerate(colors):
             correction_dist[...,i] = ColorMapper.redmean_dist(target_image, color)
         

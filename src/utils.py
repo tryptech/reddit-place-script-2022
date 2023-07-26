@@ -35,7 +35,7 @@ def get_json_from_url(self, url):
     except requests.exceptions.RequestException as e:
         self.logger.exception(f"Error fetching data from {url}: {e}")
         return None
-    
+
     return response.json()
 
 
@@ -51,12 +51,12 @@ def load_image_from_url(self, url):
     except UnidentifiedImageError:
         self.logger.exception(f"Coudln't identify image format from {url}")
         return None
-    
+
     # Convert image to RGBA - Transparency should only be supported with PNG
     if image.mode != "RGBA":
         image = image.convert("RGBA")
         self.logger.debug("Converted to rgba")
-    
+
     self.logger.debug("Loaded image size: {}", image.size)
     return image
 
@@ -64,21 +64,21 @@ def load_image_from_url(self, url):
 def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
     # Load the template images from the urls
     templates = []
-    urls = self.config_get('template_urls')
+    urls = self.config_get("template_urls")
     for url in urls:
         sources = get_json_from_url(self, url)
         if not sources:
             continue  # skip
-        templates += sources['templates']
-    
-    original_names = set(template['name'] for template in templates)
+        templates += sources["templates"]
+
+    original_names = set(template["name"] for template in templates)
 
     priority_names = set()
     try:
-        url = self.config_get('priority_url')
+        url = self.config_get("priority_url")
         if url:
-            for priority_template in get_json_from_url(self, url)['templates']:
-                priority_names.add(priority_template['name'])
+            for priority_template in get_json_from_url(self, url)["templates"]:
+                priority_names.add(priority_template["name"])
     except requests.exceptions.HTTPError:
         self.logger.warning("Failed to load priority templates")
 
@@ -92,25 +92,24 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
     names = names & original_names
     self.logger.debug("Using templates: {}", names)
     if names:
-        templates = list(filter(lambda template: template['name'] in names, templates))
+        templates = list(filter(lambda template: template["name"] in names, templates))
     else:
         self.logger.warning("No template matches names")
 
     images = []
     for sources in templates:
-        image = load_image_from_url(self, sources['sources'][0])
+        image = load_image_from_url(self, sources["sources"][0])
         if not image:
-            self.logger.warning("Failed to load image for template {}", sources['name'])
+            self.logger.warning("Failed to load image for template {}", sources["name"])
             continue  # skip
         images.append(image)
-    
+
     if not images:
         self.logger.error("Empty templates")
         return None
 
     # Compute dimensions
-    coords = np.array([(template['x'], template['y'])
-                       for template in templates])
+    coords = np.array([(template["x"], template["y"]) for template in templates])
     sizes = np.array([image.size for image in images])
     dims = coords + sizes
     # Starting position
@@ -118,7 +117,7 @@ def load_template_data(self) -> tuple[np.ndarray, Image.Image]:
     dim = np.max(dims, axis=0)
 
     # Combine all images
-    image = Image.new('RGBA', (*dim,))  # canvas in RGBA
+    image = Image.new("RGBA", (*dim,))  # canvas in RGBA
     for i, c in zip(images[::-1], coords[::-1]):
         image.paste(i, (*c,), i)
     image = image.crop((*coord, *dim))

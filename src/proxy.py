@@ -116,13 +116,15 @@ def get_random_proxy(self, username=None):
         tor_reconnect(self)
         self.logger.debug("Using Tor. Selecting first proxy: {}.", str(self.proxies[0]))
         return self.proxies[0]
-    
+
     if self.proxies is not None:
         random_proxy = self.proxies[random.randint(0, len(self.proxies) - 1)]
         self.logger.debug("Using proxy: {}", str(random_proxy))
         return random_proxy
-    
-    proxy = self.json_data["workers"][username].get("personal_proxy") if username else None
+
+    proxy = (
+        self.json_data["workers"][username].get("personal_proxy") if username else None
+    )
 
     return {"https": proxy, "http": proxy} if proxy else None
 

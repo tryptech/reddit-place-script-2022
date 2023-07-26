@@ -25,7 +25,6 @@ from place import PlaceClient
     help="Location of canvas.json",
 )
 def main(debug: bool, config: str, canvas: str):
-
     if not debug:
         # default loguru level is DEBUG
         logger.remove()

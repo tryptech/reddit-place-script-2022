@@ -14,7 +14,7 @@ import src.connect as connect
 class PlaceClient:
     def __init__(self, config_path, canvas_path):
         self.logger = logger
-        logger.add('logs/{time}.log', rotation='1 day')
+        logger.add("logs/{time}.log", rotation="1 day")
 
         # Thread monitoring
         self.update_lock = threading.Lock()
@@ -42,7 +42,7 @@ class PlaceClient:
         coord, template = data
 
         # Template information
-        self.coord = coord + np.array(self.canvas['offset']['template_api'])
+        self.coord = coord + np.array(self.canvas["offset"]["template_api"])
         self.color_palette = ColorMapper.FULL_COLOR_MAP
         self.template: np.ndarray = ColorMapper.correct_image(
             np.swapaxes(template, 0, 1), self.color_palette
@@ -68,23 +68,25 @@ class PlaceClient:
                 self.color_palette = colors
                 colors_changed = True
             board_changed = True
-        
+
         # Update template image and canvas offsets if outdated
         if self.template_outdated.is_set():
             self.template_outdated.clear()
-            logger.debug("Thread {}: Updating template image and canvas offsets", username)
+            logger.debug(
+                "Thread {}: Updating template image and canvas offsets", username
+            )
             data = utils.load_template_data(self)
             if not data:
                 return  # skip updating
             coord, template = data
             self.canvas = utils.get_json_data(self, self.canvas_path)
-            self.coord = coord + np.array(self.canvas['offset']['template_api'])
+            self.coord = coord + np.array(self.canvas["offset"]["template_api"])
             self.template = np.swapaxes(template, 0, 1)
             template_changed = True
-        
+
         if colors_changed or template_changed:
             self.template = ColorMapper.correct_image(self.template, self.color_palette)
-        
+
         if board_changed:
             self.board = np.swapaxes(
                 board
@@ -121,14 +123,14 @@ class PlaceClient:
 
     def save_as_png(self, image, filename):
         image = np.swapaxes(image, 0, 1).astype(np.uint8)
-        image = Image.fromarray(image, 'RGBA')
+        image = Image.fromarray(image, "RGBA")
         image.save(filename)
 
     # Thread-safe config getter
     def config_get(self, key, default=None):
         with self.config_lock:
             return self.config.get(key, default)
-    
+
     # Thread-safe config updater
     def config_update(self):
         with self.config_lock:
@@ -147,30 +149,31 @@ class PlaceClient:
                     coord, target_rgb = self.wrong_pixels.pop()
                     logger.info(
                         "Thread {}: Found unset pixel at {}",  # shows visual position
-                        username, coord + self.coord + np.array(self.canvas['offset']['visual'])
+                        username,
+                        coord + self.coord + np.array(self.canvas["offset"]["visual"]),
                     )
                     board_rgb = self.board[coord[0], coord[1], :3]
                     return coord, target_rgb, board_rgb
-            
+
             # All pixels correct, try again in 10 seconds
             logger.info(
                 "Thread {}: All pixels are correct, trying again in 10 seconds...",
-                username
+                username,
             )
 
-    def set_pixel_get_ratelimit(self, color_index, coord, username,
-                                      target_rgb, board_rgb):
-        logger.opt(colors=True).warning(
-            "Thread {}: Attempting to place pixel",
-            username
-        )
+    def set_pixel_get_ratelimit(
+        self, color_index, coord, username, target_rgb, board_rgb
+    ):
+        logger.opt(colors=True).warning("Thread {}: Attempting to place pixel", username)
         new_rgb_name = ColorMapper.color_id_to_name(color_index)
         board_rgb_name = ColorMapper.rgb_to_name(board_rgb)
-        print(f"Thread {username}",  # shows visual position
-                f"Pixel position: {coord + np.array(self.canvas['offset']['visual'])}",
-                f"Expected color: [\033[38;2;{';'.join(map(str, target_rgb))}m▉\033[0m] ({new_rgb_name})",
-                f"Board    color: [\033[38;2;{';'.join(map(str, board_rgb))}m▉\033[0m] ({board_rgb_name})",
-                sep='\n')
+        print(
+            f"Thread {username}",  # shows visual position
+            f"Pixel position: {coord + np.array(self.canvas['offset']['visual'])}",
+            f"Expected color: [\033[38;2;{';'.join(map(str, target_rgb))}m▉\033[0m] ({new_rgb_name})",
+            f"Board    color: [\033[38;2;{';'.join(map(str, board_rgb))}m▉\033[0m] ({board_rgb_name})",
+            sep="\n",
+        )
 
         # Convert global pixel position to local pixel position (Reddit API)
         # canvas structure:
@@ -179,28 +182,30 @@ class PlaceClient:
         subcanvas = (coord // 1000)[0] + 3 * (coord // 1000)[1]
         coord = coord % 1000
 
-        response = connect.set_pixel(self, coord, color_index,
-                                     subcanvas, self.access_tokens[username])
+        response = connect.set_pixel(
+            self, coord, color_index, subcanvas, self.access_tokens[username]
+        )
         logger.debug("Thread {}: Received response: {}", username, response.text)
 
         # Successfully placed
         if response.json()["data"] is not None:
-            
             next_time = (
-                response.json()["data"]["act"]["data"][0]
-                ["data"]["nextAvailablePixelTimestamp"]
+                response.json()["data"]["act"]["data"][0]["data"]
+                ["nextAvailablePixelTimestamp"]
             ) / 1000
 
-            #Check if pixel was placed, potential shadowban
-            who_placed = connect.check(self, coord, color_index, subcanvas, username) 
+            # Check if pixel was placed, potential shadowban
+            who_placed = connect.check(self, coord, color_index, subcanvas, username)
             if who_placed == username:
                 logger.success("Thread {}: Succeeded placing pixel", username)
             else:
                 logger.error("Thread {}: POTENTIALLY SHADOW BANNED", username)
-                logger.error("Thread {}: Pixel placed by {}", username or "no one" , who_placed)
+                logger.error(
+                    "Thread {}: Pixel placed by {}", username or "no one", who_placed
+                )
                 return time.time()
             return next_time
-        
+
         logger.debug(response.json().get("errors"))
         errors = response.json().get("errors")[0]
 
@@ -209,12 +214,13 @@ class PlaceClient:
             logger.error("Thread {}: {}", username, errors.get("message"))
             # Wait 1 minute on any other error
             return 60
-        
+
         # Rate limited, time in ms
         next_time = errors["extensions"]["nextAvailablePixelTs"] / 1000
         logger.error(
             "Thread {}: Failed placing pixel: rate limited for {:.0f}s",
-            username, next_time - time.time(),
+            username,
+            next_time - time.time(),
         )
         return next_time
 
@@ -226,12 +232,14 @@ class PlaceClient:
             current_time = time.time()
 
             # Refresh access token if necessary
-            if (username not in self.access_tokens
-                    or username not in self.access_token_expires_at_timestamp
-                    or (
-                        self.access_token_expires_at_timestamp[username]
-                        and current_time >= self.access_token_expires_at_timestamp[username]
-                    )):
+            if (
+                username not in self.access_tokens
+                or username not in self.access_token_expires_at_timestamp
+                or (
+                    self.access_token_expires_at_timestamp[username]
+                    and current_time >= self.access_token_expires_at_timestamp[username]
+                )
+            ):
                 logger.debug("Thread {}: Refreshing access token", username)
                 connect.login(self, username, password, username, current_time)
 
@@ -242,23 +250,31 @@ class PlaceClient:
             logger.info("Thread {} :: PLACING ::", username)
             next_placement_time = self.set_pixel_get_ratelimit(
                 ColorMapper.rgb_to_id(target_rgb),
-                self.coord + relative, username,
-                target_rgb, board_rgb
+                self.coord + relative,
+                username,
+                target_rgb,
+                board_rgb,
             )
 
             # next time until drawing with random offset to try dodging shadow bans
-            time_to_wait = next_placement_time - current_time + np.random.randint(0, 4) ** 4
+            time_to_wait = (
+                next_placement_time - current_time + np.random.randint(0, 4) ** 4
+            )
 
             if time_to_wait > 10000:
                 logger.warning("Thread {} :: CANCELLED :: Rate-Limit Banned", username)
                 return
 
             # wait until next rate limit expires
-            logger.info("Thread {}: Until next placement {:.0f}s", username, time_to_wait)
+            logger.info(
+                "Thread {}: Until next placement {:.0f}s", username, time_to_wait
+            )
             # note: Reddit limits us to place 1 pixel every 5 minutes, so I am setting it to
             # 5 minutes and 30 seconds per pixel
             if self.stop_event.wait(time_to_wait):
-                logger.warning("Thread {} :: CANCELLED :: Stopped by Main Thread", username)
+                logger.warning(
+                    "Thread {} :: CANCELLED :: Stopped by Main Thread", username
+                )
                 return
 
     def start(self):
@@ -285,7 +301,10 @@ class PlaceClient:
                     logger.debug("Main: Adding new worker {}", username)
                     threads[username] = threading.Thread(
                         target=self.task,
-                        args=[username, self.config_get("workers")[username]["password"]]
+                        args=[
+                            username,
+                            self.config_get("workers")[username]["password"],
+                        ],
                     )
                     threads[username].daemon = True
                     threads[username].start()
@@ -304,7 +323,9 @@ class PlaceClient:
 
                 # Update template image and canvas offsets every 3-4 minutes
                 if i % 100 == 0:
-                    logger.debug("Main: Allowing template image and canvas offsets update")
+                    logger.debug(
+                        "Main: Allowing template image and canvas offsets update"
+                    )
                     self.template_outdated.set()
         # Check for ctrl+c
         except KeyboardInterrupt:
