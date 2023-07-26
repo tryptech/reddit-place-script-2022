@@ -18,11 +18,7 @@
     "tor_delay": 5,
     "use_builtin_tor": true,
     "workers": {
-        "worker1username": {
-            "password": "password"
-        },
-        "worker2username": {
-            "password": "password"
-        }
+        "username1": "password1",
+        "username2": "password1"
     }
 }

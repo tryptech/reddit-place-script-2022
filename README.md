@@ -53,9 +53,7 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
     "priority_url": "https://url.to.the.template3.png",
     "names": ["template1_name1", "template1_name2", "template2_name1"],
     "workers": {
-        "username": {
-            "password": "password"
-        }
+        "username": "password"
     }
 }
 ```
@@ -63,7 +61,7 @@ Note: Please use <https://jsonlint.com/> to check that your JSON file is correct
 - `template_urls` - a list of URLs to the template overlays.
 - `priority_url` - a URL to a priority template with a filtered list of sources from `"template_urls"`.
 - `names` - a list of template names to use from the template overlay. If empty, all templates will be used. `priority_url` will override this.
-- `workers` - an array of accounts to use. Each account has a `"password"` field. You can add as many accounts as you want, but reddit may detect you the more you add.
+- `workers` - an array of accounts to use. Each account has a password. You can add as many accounts as you want, but reddit may detect you the more you add.
 - ~~If you use 2 factor authentication (2FA) in your account, then change `password` to `password:XXXXXX` where `XXXXXX` is your 2FA code.~~ This no longer appears to work.
 
 ## Run the Script
@@ -106,12 +104,8 @@ Just create multiple child arrays to `"workers"` in the .json file:
 
 ```json
 "workers": {
-    "worker1username": {
-        "password": "password"
-    },
-    "worker2username": {
-        "password": "password"
-    }
+    "username1": "password1",
+    "username2": "password2"
 }
 ```
 

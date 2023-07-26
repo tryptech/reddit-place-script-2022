@@ -298,16 +298,14 @@ class PlaceClient:
                     self.config_update()
                 except JSONDecodeError:
                     logger.warning("Main: Failed to update config")
-                for username in self.config_get("workers").keys():
+                for username, password in self.config_get("workers").items():
                     if username in threads:
                         continue
+                    print(username, password)
                     logger.debug("Main: Adding new worker {}", username)
                     threads[username] = threading.Thread(
                         target=self.task,
-                        args=[
-                            username,
-                            self.config_get("workers")[username]["password"],
-                        ],
+                        args=[username, password],
                     )
                     threads[username].daemon = True
                     threads[username].start()
