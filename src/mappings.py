@@ -117,7 +117,7 @@ class ColorMapper:
         weights[...,0] = 2 + mean_r/256
         weights[...,1] = 4
         weights[...,2] = 3 - mean_r/256
-        return np.einsum('...i,...i->...', weights, delta_rgb**2)
+        return np.einsum("...i,...i->...", weights, delta_rgb**2)
 
     @staticmethod
     def correct_image(target_image: np.ndarray, colors: dict) -> np.ndarray:

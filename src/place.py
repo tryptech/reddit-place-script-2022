@@ -89,10 +89,11 @@ class PlaceClient:
 
         if board_changed:
             self.board = np.swapaxes(
-                board
-                .crop((*self.coord, *(self.coord + self.template.shape[:2])))
-                .convert("RGB"),
-                0, 1
+                board.crop(
+                    (*self.coord, *(self.coord + self.template.shape[:2]))
+                ).convert("RGB"),
+                0,
+                1,
             )
             # Compute wrong pixels (cropped template relative position)
             dist = ColorMapper.redmean_dist(self.board, self.template)
@@ -164,7 +165,9 @@ class PlaceClient:
     def set_pixel_get_ratelimit(
         self, color_index, coord, username, target_rgb, board_rgb
     ):
-        logger.opt(colors=True).warning("Thread {}: Attempting to place pixel", username)
+        logger.opt(colors=True).warning(
+            "Thread {}: Attempting to place pixel", username
+        )
         new_rgb_name = ColorMapper.color_id_to_name(color_index)
         board_rgb_name = ColorMapper.rgb_to_name(board_rgb)
         print(
