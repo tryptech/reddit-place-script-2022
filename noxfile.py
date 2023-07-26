@@ -1,6 +1,14 @@
 import nox
 
-locations = "main.py", "noxfile.py", "src/mappings.py", "src/proxy.py", "src/utils.py"
+locations = (
+    "main.py",
+    "noxfile.py",
+    "src/mappings.py",
+    "src/proxy.py",
+    "src/utils.py",
+    "src/place.py",
+    "src/connect.py",
+)
 
 
 # This is not run automatically

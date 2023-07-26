@@ -11,7 +11,6 @@ from loguru import logger
 from bs4 import BeautifulSoup
 
 import src.proxy as proxy
-from src.mappings import ColorMapper
 
 
 def set_pixel(self, coord, color_index, canvas_index, access_token):
@@ -32,19 +31,17 @@ def set_pixel(self, coord, color_index, canvas_index, access_token):
                 }
             },
             "query": """mutation setPixel($input: ActInput!) {
-                    act(input: $input) {
-                        data {
-                            ... on BasicMessage {
-                                id
-                                data {
-                                    ... on GetUserCooldownResponseMessageData {
-                                        nextAvailablePixelTimestamp
-                                        __typename
-                                    }
-                                    ... on SetPixelResponseMessageData {
-                                        timestamp
-                                        __typename
-                                    }
+                act(input: $input) {
+                    data {
+                        ... on BasicMessage {
+                            id
+                            data {
+                                ... on GetUserCooldownResponseMessageData {
+                                    nextAvailablePixelTimestamp
+                                    __typename
+                                }
+                                ... on SetPixelResponseMessageData {
+                                    timestamp
                                     __typename
                                 }
                                 __typename
@@ -53,8 +50,9 @@ def set_pixel(self, coord, color_index, canvas_index, access_token):
                         }
                         __typename
                     }
+                    __typename
                 }
-            """,
+            }""",
         }
     )
     headers = {
@@ -75,193 +73,225 @@ def set_pixel(self, coord, color_index, canvas_index, access_token):
 
     return response
 
+
 def get_board(self, access_token_in):
-        logger.debug("Connecting and obtaining board images")
-        while not self.stop_event.is_set():
-            try:
-                ws = create_connection(
-                    "wss://gql-realtime-2.reddit.com/query",
-                    origin="https://garlic-bread.reddit.com",
-                    sslopt={"cert_reqs": ssl.CERT_NONE},
-                    
-                )
-                break
-            except Exception:
-                logger.error(
-                    "Failed to connect to websocket, trying again in 30 seconds..."
-                )
-                time.sleep(30)
+    logger.debug("Connecting and obtaining board images")
+    while not self.stop_event.is_set():
+        try:
+            ws = create_connection(
+                "wss://gql-realtime-2.reddit.com/query",
+                origin="https://garlic-bread.reddit.com",
+                sslopt={"cert_reqs": ssl.CERT_NONE},
+            )
+            break
+        except Exception:
+            logger.error(
+                "Failed to connect to websocket, trying again in 30 seconds..."
+            )
+            time.sleep(30)
+
+    ws.send(
+        json.dumps(
+            {
+                "type": "connection_init",
+                "payload": {"Authorization": "Bearer " + access_token_in},
+            }
+        )
+    )
+    while not self.stop_event.is_set():
+        try:
+            msg = ws.recv()
+        except WebSocketConnectionClosedException as e:
+            logger.error(e)
+            continue
+        if msg is None:
+            logger.error("Reddit failed to acknowledge connection_init")
+            exit()
+        if msg.startswith('{"type":"connection_ack"}'):
+            logger.debug("Connected to WebSocket server")
+            break
+    logger.debug("Obtaining Canvas information")
+    ws.send(
+        json.dumps(
+            {
+                "id": "1",
+                "type": "start",
+                "payload": {
+                    "variables": {
+                        "input": {
+                            "channel": {
+                                "teamOwner": "GARLICBREAD",
+                                "category": "CONFIG",
+                            }
+                        }
+                    },
+                    "extensions": {},
+                    "operationName": "configuration",
+                    "query": """subscription configuration($input: SubscribeInput!) {
+                        subscribe(input: $input) {
+                            id
+                            ... on BasicMessage {
+                                data {
+                                    __typename
+                                    ... on ConfigurationMessageData {
+                                        colorPalette {
+                                            colors {
+                                                hex
+                                                index
+                                                __typename
+                                            }
+                                            __typename
+                                        }
+                                        canvasConfigurations {
+                                            index
+                                            dx
+                                            dy
+                                            __typename
+                                        }
+                                        canvasWidth
+                                        canvasHeight
+                                        __typename
+                                    }
+                                }
+                                __typename
+                            }
+                            __typename
+                        }
+                    }""",
+                },
+            }
+        )
+    )
+
+    while not self.stop_event.is_set():
+        canvas_payload = json.loads(ws.recv())
+        if canvas_payload["type"] == "data":
+            canvas_details = canvas_payload["payload"]["data"]["subscribe"]["data"]
+            logger.debug("Canvas config: {}", canvas_payload)
+            break
+
+    canvas_sockets = []
+
+    canvas_count = len(canvas_details["canvasConfigurations"])
+
+    # Update color map
+    colors = canvas_details["colorPalette"]["colors"]
+    colors = {color["hex"]: color["index"] for color in colors}
+
+    for i in range(0, canvas_count):
+        canvas_sockets.append(2 + i)
+        logger.debug("Creating canvas socket {}", canvas_sockets[i])
 
         ws.send(
             json.dumps(
                 {
-                    "type": "connection_init",
-                    "payload": {"Authorization": "Bearer " + access_token_in},
-                }
-            )
-        )
-        while not self.stop_event.is_set():
-            try:
-                msg = ws.recv()
-            except WebSocketConnectionClosedException as e:
-                logger.error(e)
-                continue
-            if msg is None:
-                logger.error("Reddit failed to acknowledge connection_init")
-                exit()
-            if msg.startswith('{"type":"connection_ack"}'):
-                logger.debug("Connected to WebSocket server")
-                break
-        logger.debug("Obtaining Canvas information")
-        ws.send(
-            json.dumps(
-                {
-                    "id": "1",
+                    "id": str(2 + i),
                     "type": "start",
                     "payload": {
                         "variables": {
                             "input": {
                                 "channel": {
                                     "teamOwner": "GARLICBREAD",
-                                    "category": "CONFIG",
+                                    "category": "CANVAS",
+                                    "tag": str(i),
                                 }
                             }
                         },
                         "extensions": {},
-                        "operationName": "configuration",
-                        "query": "subscription configuration($input: SubscribeInput!) {\n  subscribe(input: $input) {\n    id\n    ... on BasicMessage {\n      data {\n        __typename\n        ... on ConfigurationMessageData {\n          colorPalette {\n            colors {\n              hex\n              index\n              __typename\n            }\n            __typename\n          }\n          canvasConfigurations {\n            index\n            dx\n            dy\n            __typename\n          }\n          canvasWidth\n          canvasHeight\n          __typename\n        }\n      }\n      __typename\n    }\n    __typename\n  }\n}\n",
+                        "operationName": "replace",
+                        "query": """subscription replace($input: SubscribeInput!) {
+                            subscribe(input: $input) {
+                                id
+                                ... on BasicMessage {
+                                    data {
+                                        __typename
+                                        ... on FullFrameMessageData {
+                                            __typename
+                                            name
+                                            timestamp
+                                        }
+                                        ... on DiffFrameMessageData {
+                                            __typename
+                                            name
+                                            currentTimestamp
+                                            previousTimestamp
+                                        }
+                                    }
+                                    __typename
+                                }
+                                __typename
+                            }
+                        }""",
                     },
                 }
             )
         )
 
-        while not self.stop_event.is_set():
-            canvas_payload = json.loads(ws.recv())
-            if canvas_payload["type"] == "data":
-                canvas_details = canvas_payload["payload"]["data"]["subscribe"]["data"]
-                logger.debug("Canvas config: {}", canvas_payload)
-                break
+    imgs = []
+    logger.debug("A total of {} canvas sockets opened", len(canvas_sockets))
 
-        canvas_sockets = []
+    while len(canvas_sockets) > 0:
+        temp = json.loads(ws.recv())
+        logger.debug("Waiting for WebSocket message")
 
-        canvas_count = len(canvas_details["canvasConfigurations"])
+        if temp["type"] == "data":
+            logger.debug(f"Received WebSocket data type message")
+            msg = temp["payload"]["data"]["subscribe"]
 
-        # Update color map
-        colors = canvas_details["colorPalette"]["colors"]
-        colors = {color["hex"]: color["index"] for color in colors}
+            if msg["data"]["__typename"] == "FullFrameMessageData":
+                logger.debug("Received full frame message")
+                img_id = int(temp["id"])
+                logger.debug("Image ID: {}", img_id)
 
-        for i in range(0, canvas_count):
-            canvas_sockets.append(2 + i)
-            logger.debug("Creating canvas socket {}", canvas_sockets[i])
+                if img_id in canvas_sockets:
+                    logger.debug("Getting image: {}", msg["data"]["name"])
+                    img = requests.get(
+                        msg["data"]["name"],
+                        stream=True,
+                        proxies=proxy.get_random_proxy(self, username=None),
+                    )
+                    if not img.status_code == 404:
+                        imgs.append(
+                            [
+                                img_id,
+                                Image.open(BytesIO(img.content)),
+                            ]
+                        )
+                        canvas_sockets.remove(img_id)
+                        logger.debug(
+                            "Canvas sockets remaining: {}", len(canvas_sockets)
+                        )
+                    else:
+                        logger.debug("Received wrong image")
+                        canvas_sockets.remove(img_id)
 
-            ws.send(
-                json.dumps(
-                    {
-                        "id": str(2 + i),
-                        "type": "start",
-                        "payload": {
-                            "variables": {
-                                "input": {
-                                    "channel": {
-                                        "teamOwner": "GARLICBREAD",
-                                        "category": "CANVAS",
-                                        "tag": str(i),
-                                    }
-                                }
-                            },
-                            "extensions": {},
-                            "operationName": "replace",
-                            "query": """subscription replace($input: SubscribeInput!) {
-                                    subscribe(input: $input) {
-                                        id
-                                        ... on BasicMessage {
-                                            data {
-                                                __typename
-                                                ... on FullFrameMessageData {
-                                                    __typename
-                                                    name
-                                                    timestamp
-                                                }
-                                                ... on DiffFrameMessageData {
-                                                    __typename
-                                                    name
-                                                    currentTimestamp
-                                                    previousTimestamp
-                                                }
-                                            }
-                                            __typename
-                                        }
-                                        __typename
-                                    }
-                                }""",
-                        },
-                    }
-                )
-            )
+    for i in range(0, canvas_count - 1):
+        ws.send(json.dumps({"id": str(2 + i), "type": "stop"}))
 
-        imgs = []
-        logger.debug("A total of {} canvas sockets opened", len(canvas_sockets))
+    ws.close()
 
-        while len(canvas_sockets) > 0:
-            temp = json.loads(ws.recv())
-            logger.debug("Waiting for WebSocket message")
+    new_img_width = (
+        max(map(lambda x: x["dx"], canvas_details["canvasConfigurations"]))
+        + canvas_details["canvasWidth"]
+    )
+    logger.debug("New image width: {}", new_img_width)
 
-            if temp["type"] == "data":
-                logger.debug(f"Received WebSocket data type message")
-                msg = temp["payload"]["data"]["subscribe"]
+    new_img_height = (
+        max(map(lambda x: x["dy"], canvas_details["canvasConfigurations"]))
+        + canvas_details["canvasHeight"]
+    )
+    logger.debug("New image height: {}", new_img_height)
 
-                if msg["data"]["__typename"] == "FullFrameMessageData":
-                    logger.debug("Received full frame message")
-                    img_id = int(temp["id"])
-                    logger.debug("Image ID: {}", img_id)
+    new_img = Image.new("RGB", (new_img_width, new_img_height))
 
-                    if img_id in canvas_sockets:
-                        logger.debug("Getting image: {}", msg["data"]["name"])
-                        img = requests.get(msg["data"]["name"], stream=True,
-                                           proxies=proxy.get_random_proxy(self, username=None),)
-                        if not img.status_code == 404:
-                            imgs.append(
-                                [
-                                    img_id,
-                                    Image.open(
-                                        BytesIO(img.content)
-                                    ),
-                                ]
-                            )
-                            canvas_sockets.remove(img_id)
-                            logger.debug(
-                                "Canvas sockets remaining: {}", len(canvas_sockets)
-                            )
-                        else:
-                            logger.debug("Received wrong image")
-                            canvas_sockets.remove(img_id)
+    for idx, img in enumerate(sorted(imgs, key=lambda x: x[0])):
+        logger.debug("Adding image (ID {}): {}", img[0], img[1])
+        dx_offset = int(canvas_details["canvasConfigurations"][idx]["dx"])
+        dy_offset = int(canvas_details["canvasConfigurations"][idx]["dy"])
+        new_img.paste(img[1], (dx_offset, dy_offset))
 
-        for i in range(0, canvas_count - 1):
-            ws.send(json.dumps({"id": str(2 + i), "type": "stop"}))
+    return new_img, colors
 
-        ws.close()
-
-        new_img_width = (
-            max(map(lambda x: x["dx"], canvas_details["canvasConfigurations"]))
-            + canvas_details["canvasWidth"]
-        )
-        logger.debug("New image width: {}", new_img_width)
-
-        new_img_height = (
-            max(map(lambda x: x["dy"], canvas_details["canvasConfigurations"]))
-            + canvas_details["canvasHeight"]
-        )
-        logger.debug("New image height: {}", new_img_height)
-
-        new_img = Image.new("RGB", (new_img_width, new_img_height))
-
-        for idx, img in enumerate(sorted(imgs, key=lambda x: x[0])):
-            logger.debug("Adding image (ID {}): {}", img[0], img[1])
-            dx_offset = int(canvas_details["canvasConfigurations"][idx]["dx"])
-            dy_offset = int(canvas_details["canvasConfigurations"][idx]["dy"])
-            new_img.paste(img[1], (dx_offset, dy_offset))
-
-        return new_img, colors
 
 def login(self, username, password, index, current_time):
     while not self.stop_event.is_set():
@@ -283,9 +313,7 @@ def login(self, username, password, index, current_time):
                 proxies=proxy.get_random_proxy(self, username),
             )
             login_get_soup = BeautifulSoup(r.content, "html.parser")
-            csrf_token = login_get_soup.find(
-                "input", {"name": "csrf_token"}
-            )["value"]
+            csrf_token = login_get_soup.find("input", {"name": "csrf_token"})["value"]
             data = {
                 "username": username,
                 "password": password,
@@ -351,13 +379,14 @@ def login(self, username, password, index, current_time):
     # access_token_scope = response_data["scope"]  # this is usually "*"
 
     # ts stores the time in seconds
-    self.access_token_expires_at_timestamp[
-        index
-    ] = current_time + int(access_token_expires_in_seconds)
+    self.access_token_expires_at_timestamp[index] = current_time + int(
+        access_token_expires_in_seconds
+    )
     logger.debug(
         "Received new access token: {}************",
         self.access_tokens.get(index)[:5],
     )
+
 
 def check(self, coord, color_index, canvas_index, user):
     logger.debug('Thread {}" Self-checking if placement went through', user)
@@ -376,7 +405,30 @@ def check(self, coord, color_index, canvas_index, user):
                     },
                 }
             },
-            "query": "mutation pixelHistory($input: ActInput!) {\n  act(input: $input) {\n    data {\n      ... on BasicMessage {\n        id\n        data {\n          ... on GetTileHistoryResponseMessageData {\n            lastModifiedTimestamp\n            userInfo {\n              userID\n              username\n              __typename\n            }\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n",
+            "query": """mutation pixelHistory($input: ActInput!) {
+                act(input: $input) {
+                    data {
+                        ... on BasicMessage {
+                            id
+                            data {
+                                ... on GetTileHistoryResponseMessageData {
+                                    lastModifiedTimestamp
+                                    userInfo {
+                                        userID
+                                        username
+                                        __typename
+                                    }
+                                    __typename
+                                }
+                                __typename
+                            }
+                            __typename
+                        }
+                        __typename
+                    }
+                    __typename
+                }
+            }""",
         }
     )
     headers = {
@@ -396,11 +448,12 @@ def check(self, coord, color_index, canvas_index, user):
         proxies=proxy.get_random_proxy(self, username=None),
     )
 
-    try: 
-        pixel_user = response.json()['data']['act']['data'][0]['data']['userInfo']['username']
+    try:
+        pixel_user = response.json()["data"]["act"]["data"][0]["data"]["userInfo"]
+        ["username"]
 
-        logger.debug('Thread {}: Pixel placed by {}', user, pixel_user)
+        logger.debug("Thread {}: Pixel placed by {}", user, pixel_user)
     except Exception as e:
-        logger.debug('Thread {}: Pixel placed by no one', user)
+        logger.debug("Thread {}: Pixel placed by no one", user)
         return None
     return pixel_user

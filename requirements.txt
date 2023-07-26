@@ -10,3 +10,5 @@ click==8.1.2
 loguru==0.6.0
 beautifulsoup4~=4.10.0
 stem~=1.8.0
+numpy~=1.25.1
+nox~=2023.4.22
